@@ -1,0 +1,39 @@
+﻿{
+  "routerMap": [
+    {
+      "name": "spaceList",
+      "pageSourceFile": "src/main/ets/pages/SpaceListPage.ets",
+      "buildFunction": "spaceListBuilder"
+    },
+    {
+      "name": "settings",
+      "pageSourceFile": "src/main/ets/pages/SettingsPage.ets",
+      "buildFunction": "settingsBuilder"
+    },
+    {
+      "name": "createSpace",
+      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "buildFunction": "createSpaceBuilder"
+    },
+    {
+      "name": "scheduleOverview",
+      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "buildFunction": "scheduleOverviewBuilder"
+    },
+    {
+      "name": "taskDetail",
+      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "buildFunction": "taskDetailBuilder"
+    },
+    {
+      "name": "learningRecords",
+      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "buildFunction": "learningRecordsBuilder"
+    },
+    {
+      "name": "reviewList",
+      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "buildFunction": "reviewListBuilder"
+    }
+  ]
+}
