@@ -1,0 +1,23 @@
+{
+  "color": [
+    { "name": "start_window_background", "value": "#FFFFFF" },
+    { "name": "bg_page", "value": "#F4F5F7" },
+    { "name": "bg_card", "value": "#FFFFFF" },
+    { "name": "text_primary", "value": "#1A1D21" },
+    { "name": "text_secondary", "value": "#55606B" },
+    { "name": "text_tertiary", "value": "#8A949E" },
+    { "name": "brand", "value": "#4C5FD5" },
+    { "name": "brand_weak", "value": "#EAEDFB" },
+    { "name": "on_brand", "value": "#FFFFFF" },
+    { "name": "divider", "value": "#E8EAEE" },
+    { "name": "track", "value": "#E8EAEE" },
+    { "name": "tag_blue_bg", "value": "#E3EBFC" },
+    { "name": "tag_blue_text", "value": "#2B5BC4" },
+    { "name": "tag_green_bg", "value": "#E2F4E6" },
+    { "name": "tag_green_text", "value": "#2E7D43" },
+    { "name": "tag_gray_bg", "value": "#EDEFF2" },
+    { "name": "tag_gray_text", "value": "#5C6670" },
+    { "name": "tag_orange_bg", "value": "#FCEFE2" },
+    { "name": "tag_orange_text", "value": "#B4691E" }
+  ]
+}
