@@ -26,14 +26,34 @@
       "buildFunction": "taskDetailBuilder"
     },
     {
-      "name": "learningRecords",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
-      "buildFunction": "learningRecordsBuilder"
-    },
-    {
       "name": "reviewList",
       "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
       "buildFunction": "reviewListBuilder"
+    },
+    {
+      "name": "actionWorkbench",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "actionWorkbenchBuilder"
+    },
+    {
+      "name": "conceptCompare",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "conceptCompareBuilder"
+    },
+    {
+      "name": "compareResult",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "compareResultBuilder"
+    },
+    {
+      "name": "practiceFeedback",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "practiceFeedbackBuilder"
+    },
+    {
+      "name": "learningRecords",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "learningRecordsBuilder"
     }
   ]
 }
