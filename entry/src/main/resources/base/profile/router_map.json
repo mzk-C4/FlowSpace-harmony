@@ -17,13 +17,23 @@
     },
     {
       "name": "scheduleOverview",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "pageSourceFile": "src/main/ets/pages/ScheduleOverviewPage.ets",
       "buildFunction": "scheduleOverviewBuilder"
     },
     {
+      "name": "timeline",
+      "pageSourceFile": "src/main/ets/pages/TimelinePage.ets",
+      "buildFunction": "timelineBuilder"
+    },
+    {
       "name": "taskDetail",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "pageSourceFile": "src/main/ets/pages/TaskDetailPage.ets",
       "buildFunction": "taskDetailBuilder"
+    },
+    {
+      "name": "adjustPreview",
+      "pageSourceFile": "src/main/ets/pages/AdjustPreviewPage.ets",
+      "buildFunction": "adjustPreviewBuilder"
     },
     {
       "name": "learningRecords",
@@ -32,8 +42,13 @@
     },
     {
       "name": "reviewList",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "pageSourceFile": "src/main/ets/pages/ReviewListPage.ets",
       "buildFunction": "reviewListBuilder"
+    },
+    {
+      "name": "knowledgeProjects",
+      "pageSourceFile": "src/main/ets/pages/KnowledgeProjectPage.ets",
+      "buildFunction": "knowledgeProjectsBuilder"
     }
   ]
 }

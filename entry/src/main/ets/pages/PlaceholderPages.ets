@@ -35,42 +35,6 @@ export function createSpaceBuilder() {
 }
 
 @Builder
-export function scheduleOverviewBuilder() {
-  NavDestination() {
-    Column() {
-      EmptyState({
-        title: '安排总览',
-        hint: '安排总览由黄崇杰负责，将在 M2 阶段交付。'
-      })
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-    .justifyContent(FlexAlign.Center)
-  }
-  .backgroundColor($r('app.color.bg_page'))
-  .title('安排总览')
-}
-
-@Builder
-export function taskDetailBuilder() {
-  NavDestination() {
-    Column() {
-      EmptyState({
-        title: '学习任务详情',
-        hint: '任务详情由黄崇杰负责，将在 M2 阶段交付。'
-      })
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-    .justifyContent(FlexAlign.Center)
-  }
-  .backgroundColor($r('app.color.bg_page'))
-  .title('学习任务详情')
-}
-
-@Builder
 export function learningRecordsBuilder() {
   NavDestination() {
     Column() {
@@ -86,22 +50,4 @@ export function learningRecordsBuilder() {
   }
   .backgroundColor($r('app.color.bg_page'))
   .title('学习记录')
-}
-
-@Builder
-export function reviewListBuilder() {
-  NavDestination() {
-    Column() {
-      EmptyState({
-        title: '复习清单',
-        hint: '复习清单由黄崇杰负责，将在 M3（P1）阶段交付。'
-      })
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-    .justifyContent(FlexAlign.Center)
-  }
-  .backgroundColor($r('app.color.bg_page'))
-  .title('复习清单')
 }

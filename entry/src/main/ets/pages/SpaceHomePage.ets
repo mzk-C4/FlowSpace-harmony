@@ -14,6 +14,10 @@ export struct SpaceHomePage {
   @State todayTasks: TodayTask[] = [];
 
   aboutToAppear(): void {
+    this.reload();
+  }
+
+  private reload(): void {
     MockService.getRecentSpace().then((space: SpaceInfo | null) => {
       this.recentSpace = space;
     });
@@ -174,7 +178,9 @@ export struct SpaceHomePage {
           title: '今日安排',
           actionText: '安排总览 >',
           onAction: () => {
-            this.pathStack.pushPathByName('scheduleOverview', '');
+            this.pathStack.pushPathByName('scheduleOverview', '', (popInfo: PopInfo) => {
+              this.reload();
+            });
           }
         })
         Column({ space: 10 }) {
@@ -215,7 +221,9 @@ export struct SpaceHomePage {
             .backgroundColor($r('app.color.bg_card'))
             .alignItems(VerticalAlign.Center)
             .onClick(() => {
-              this.pathStack.pushPathByName('taskDetail', task.taskId);
+              this.pathStack.pushPathByName('taskDetail', task.taskId, (popInfo: PopInfo) => {
+                this.reload();
+              });
             })
           }, (task: TodayTask) => task.taskId)
 
