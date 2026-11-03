@@ -1,6 +1,6 @@
 import { SpaceHomePage } from './SpaceHomePage';
 import { MinePage } from './MinePage';
-import { MapPlaceholderPanel } from './PlaceholderPages';
+import { KnowledgeMap } from './KnowledgeMapPage';
 
 @Entry
 @Component
@@ -41,7 +41,7 @@ struct Index {
         .tabBar(this.tabBarBuilder('首页', 0))
 
         TabContent() {
-          MapPlaceholderPanel()
+          KnowledgeMap({ pathStack: this.pathStack, spaceId: 'space_hm' })
         }
         .tabBar(this.tabBarBuilder('地图', 1))
 
