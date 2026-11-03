@@ -1,16 +1,16 @@
 {
   "string": [
     {
-      "name": "module_desc",
-      "value": "module description"
+      "value": "自然语言生成与编辑思维导图",
+      "name": "module_desc"
     },
     {
-      "name": "EntryAbility_desc",
-      "value": "description"
+      "value": "FlowSpace AI 思维导图",
+      "name": "EntryAbility_desc"
     },
     {
-      "name": "EntryAbility_label",
-      "value": "label"
+      "value": "FlowSpace",
+      "name": "EntryAbility_label"
     }
   ]
 }

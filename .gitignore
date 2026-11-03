@@ -11,3 +11,15 @@
 **/.test
 /.appanalyzer
 .DS_Store
+/artifacts/
+/oh_modules/
+**/oh_modules/
+/.hvigor/
+/local.properties
+/.env
+/backend/.env
+/backend/.env.local
+/docs/implementation/feishu-before.json
+/docs/implementation/feishu-after.json
+/docs/references/
+*.log
