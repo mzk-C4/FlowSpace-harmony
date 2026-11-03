@@ -1,6 +1,11 @@
 // KnowledgeMap.ets
 // FlowSpace · 知识地图页面（鸿蒙 ArkTS / ArkUI 版）
 // 功能：05 地图/列表(关系用文字展示) · 06 节点详情(资料/样例/笔记/练习/关联任务/相关节点 + 任务与理解状态独立) · 07 材料详情 · 03/04 新建空间 · 08 空间内搜索
+// 集成：节点详情提供“练一下 / 比较”入口，按白长林→陈珂睿 handoff（spaceId / nodeId / templateId）跳转到 15 行动工作台与 09 概念对比台。
+
+// 注：NavPathStack 在 API 26 中是全局类型，无需从 @kit.ArkUI 导入。
+
+import { LaunchParams } from '../model/PracticeModels';
 
 // ── 1. 数据模型：和 HTML 里的 NODES 是同一份，只是用 interface 描述形状 ──
 interface KnowNode {
@@ -61,9 +66,12 @@ const NODES: KnowNode[] = [
 ]
 
 // ── 5. 主页面：地图/列表(05) + 详情(06) + 材料(07) + 新建空间(03/04) + 搜索(08) 全在这一个页面里 ──
-@Entry
 @Component
-struct KnowledgeMap {
+export struct KnowledgeMap {
+  // 跨页导航与归属空间（陈珂睿模块据此跳转到行动工作台 / 对比台）
+  pathStack: NavPathStack = new NavPathStack();
+  spaceId: string = 'space_hm';
+
   // 地图/列表/详情 用的状态
   @State nodes: KnowNode[] = NODES
   @State view: string = 'map'          // map / list
@@ -299,6 +307,40 @@ struct KnowledgeMap {
           .border({ width: 1, color: '#d8dee9' })
           .borderRadius(10)
           .width('100%')
+
+          // 练习入口：白长林 → 陈珂睿 handoff（spaceId / nodeId / templateId）
+          Row({ space: 10 }) {
+            Button('练一下')
+              .fontSize(13)
+              .fontColor('#ffffff')
+              .backgroundColor('#4f6bed')
+              .height(36)
+              .layoutWeight(1)
+              .onClick(() => {
+                const param: LaunchParams = {
+                  spaceId: this.spaceId,
+                  nodeId: this.selected!.id,
+                  templateId: 'tpl_state'
+                };
+                this.pathStack.pushPathByName('actionWorkbench', param);
+              })
+            Button('比较')
+              .fontSize(13)
+              .fontColor('#4f6bed')
+              .backgroundColor('#e8edf5')
+              .height(36)
+              .layoutWeight(1)
+              .onClick(() => {
+                const param: LaunchParams = {
+                  spaceId: this.spaceId,
+                  nodeId: this.selected!.id,
+                  templateId: 'tpl_stack_queue'
+                };
+                this.pathStack.pushPathByName('conceptCompare', param);
+              })
+          }
+          .width('100%')
+          .margin({ top: 12 })
         }
         .width('100%')
       }

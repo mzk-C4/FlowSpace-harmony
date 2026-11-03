@@ -1,5 +1,35 @@
-﻿{
+{
   "routerMap": [
+    {
+      "name": "createSpace",
+      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "buildFunction": "createSpaceBuilder"
+    },
+    {
+      "name": "actionWorkbench",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "actionWorkbenchBuilder"
+    },
+    {
+      "name": "conceptCompare",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "conceptCompareBuilder"
+    },
+    {
+      "name": "compareResult",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "compareResultBuilder"
+    },
+    {
+      "name": "practiceFeedback",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "practiceFeedbackBuilder"
+    },
+    {
+      "name": "learningRecords",
+      "pageSourceFile": "src/main/ets/pages/ChenKeruiPages.ets",
+      "buildFunction": "learningRecordsBuilder"
+    },
     {
       "name": "spaceList",
       "pageSourceFile": "src/main/ets/pages/SpaceListPage.ets",
@@ -11,29 +41,34 @@
       "buildFunction": "settingsBuilder"
     },
     {
-      "name": "createSpace",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
-      "buildFunction": "createSpaceBuilder"
-    },
-    {
       "name": "scheduleOverview",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "pageSourceFile": "src/main/ets/pages/ScheduleOverviewPage.ets",
       "buildFunction": "scheduleOverviewBuilder"
     },
     {
+      "name": "timeline",
+      "pageSourceFile": "src/main/ets/pages/TimelinePage.ets",
+      "buildFunction": "timelineBuilder"
+    },
+    {
       "name": "taskDetail",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "pageSourceFile": "src/main/ets/pages/TaskDetailPage.ets",
       "buildFunction": "taskDetailBuilder"
     },
     {
-      "name": "learningRecords",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
-      "buildFunction": "learningRecordsBuilder"
+      "name": "adjustPreview",
+      "pageSourceFile": "src/main/ets/pages/AdjustPreviewPage.ets",
+      "buildFunction": "adjustPreviewBuilder"
     },
     {
       "name": "reviewList",
-      "pageSourceFile": "src/main/ets/pages/PlaceholderPages.ets",
+      "pageSourceFile": "src/main/ets/pages/ReviewListPage.ets",
       "buildFunction": "reviewListBuilder"
+    },
+    {
+      "name": "knowledgeProjects",
+      "pageSourceFile": "src/main/ets/pages/KnowledgeProjectPage.ets",
+      "buildFunction": "knowledgeProjectsBuilder"
     }
   ]
 }
