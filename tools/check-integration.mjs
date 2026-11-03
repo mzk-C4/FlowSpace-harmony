@@ -14,11 +14,13 @@ for (const route of routes) {
   const source = read(join(root, 'entry', route.pageSourceFile));
   assert.ok(source.includes(`export function ${route.buildFunction}(`), `缺少 builder: ${route.name}`);
 }
-for (const name of ['actionWorkbench', 'conceptCompare', 'compareResult', 'practiceFeedback', 'learningRecords',
-  'scheduleOverview', 'timeline', 'taskDetail', 'adjustPreview', 'reviewList', 'knowledgeProjects']) {
-  assert.ok(byName.has(name), `缺少成员路由 ${name}`);
-  assert.ok(!byName.get(name).pageSourceFile.includes('Placeholder'), `成员路由仍为占位 ${name}`);
+const entry = read(join(root, 'entry/src/main/ets/pages/Index.ets'));
+for (const name of ['HomePage', 'DIYPage', 'LibraryPage', 'ProfilePage']) {
+  assert.ok(entry.includes(name + '({'), `未接入页面 ${name}`);
 }
+const build = read(join(root, 'build-profile.json5'));
+assert.ok(build.includes('6.1.1(24)'), '工程未使用 API 24');
+assert.ok(!build.includes('6.1.1(26)'), '仍引用旧 API');
 const files = walk(join(root, 'entry/src/main/ets')).filter(f => f.endsWith('.ets'));
 const colors = new Set(JSON.parse(read(join(root, 'entry/src/main/resources/base/element/color.json'))).color.map(c => c.name));
 for (const file of files) {
@@ -34,4 +36,4 @@ for (const file of files) {
     assert.ok(colors.has(name), `缺少颜色 ${file}: ${name}`);
   }
 }
-console.log(`静态集成检查通过：${routes.length} 个路由、${files.length} 个 ArkTS 文件。此检查不代替 SDK 编译和设备验收。`);
+console.log(`静态集成检查通过：4个已接入页面、${files.length}个ArkTS文件、有效导入和颜色。此检查不代替SDK编译和设备验收。`);

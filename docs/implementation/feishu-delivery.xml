@@ -1,0 +1,12 @@
+<h2>8 本轮交付与接下来的验收</h2>
+<p>2026年11月4日：四个页面已接入同一鸿蒙应用，提供可直接打开的四页面交互预览。首页已整理8门工科学习视频课程，资料库已整理13项资料；各条目含官方来源、语言和许可说明。这是本轮初始材料与代码交付，四位负责同学仍需逐项核验和维护各自页面。</p>
+<p><a href="https://github.com/mzk-C4/FlowSpace-harmony/blob/main/docs/implementation/videos.md">赵紫石：8门工科视频与官方链接</a> · <a href="https://github.com/mzk-C4/FlowSpace-harmony/blob/main/docs/implementation/resources.md">陈珂睿：13项开放资料与许可依据</a> · <a href="https://github.com/mzk-C4/FlowSpace-harmony/blob/main/docs/preview/index.html">四页面完整预览源码（下载后打开）</a></p>
+<p>原生API24整体编译已通过，产物为未签名HAP；领域、AI协议、保存恢复和页面编排已执行自动化测试。第三方ohos_mind_elixir 1.0.1在API24独立编译成功；本版主应用使用自研ArkUI Canvas统一命令、撤销与版本管理。自动化使用本地假模型及系统接口替身，不等于真实供应商或真机验收。</p>
+<table><thead><tr><th>负责人</th><th>接下来的实际验收</th></tr></thead><tbody>
+<tr><td>赵紫石</td><td>主题和长文输入、超长输入保留、8门视频链接、失败重试与最近导图。</td></tr>
+<tr><td>黄崇杰</td><td>手机中文节点、缩放与平移、分支移动、候选确认/撤销、200节点编辑和500节点压力记录。</td></tr>
+<tr><td>陈珂睿</td><td>13项资料逐项核验，分类搜索、来源许可、原站打开与主题生成入口。</td></tr>
+<tr><td>白长林</td><td>小屏、大字、长标题、深色、软键盘、设置重启恢复、本地文档管理与JSON导入。</td></tr>
+<tr><td>马兆坤</td><td>配置真实模型、连接手机并签名安装；验证断网/取消、实际数据库恢复、全图PNG和三条课程演示。</td></tr>
+</tbody></table>
+<p><a href="https://github.com/mzk-C4/FlowSpace-harmony/blob/main/docs/部署与演示.md">部署、安装与三条演示步骤</a> · <a href="https://github.com/mzk-C4/FlowSpace-harmony/blob/main/docs/架构与验收.md">架构与验证边界</a>。真实模型与签名手机尚未验证，不能将这些验收项预先打勾。浏览器工具打开本地预览被URL安全策略拒绝，未绕过限制，页面预览仍需人工打开确认。</p>
