@@ -10,6 +10,30 @@ param(
   [switch]$DryRun
 )
 $ErrorActionPreference='Stop'
+
+function Test-FlowSpaceAbilityRecord([string]$Dump) {
+  # Official AbilityRecord::Dump / DumpAbilityState format:
+  # https://github.com/openharmony/ability_ability_runtime/blob/master/services/abilitymgr/src/ability_record.cpp
+  # AbilityRecord ID #N -> app name [...] -> main name [...] -> bundle name [...].
+  # Require the adjacent identity fields inside one explicitly headed record.
+  # Unknown layouts fail closed; never join names found anywhere in the dump.
+  $lines=@($Dump -split '\r?\n')
+  $inRecord=$false
+  for ($index=0; $index -lt $lines.Count; $index++) {
+    $line=$lines[$index]
+    if ($line -cmatch '^[ \t]*AbilityRecord ID #[0-9]+[ \t]*$') { $inRecord=$true; continue }
+    if ($line -cmatch '^[ \t]*(?:MissionList|Mission|User ID|AbilityRecord)(?:[ \t:#]|$)') { $inRecord=$false; continue }
+    if (-not $inRecord -or $index+1 -ge $lines.Count) { continue }
+    if ($line -cmatch '^[ \t]*main name \[(?<ability>[^\]\r\n]+)\][ \t]*$') {
+      $ability=$Matches.ability
+      if ($lines[$index+1] -cmatch '^[ \t]*bundle name \[(?<bundle>[^\]\r\n]+)\][ \t]*$') {
+        if ($ability -ceq 'EntryAbility' -and $Matches.bundle -ceq 'com.mzk.flowspace') { return $true }
+      }
+    }
+  }
+  return $false
+}
+
 $root=Split-Path -Parent $PSScriptRoot
 if (-not $HdcPath) { $HdcPath=Join-Path $Toolchain 'sdk/default/openharmony/toolchains/hdc.exe' }
 if (-not (Test-Path -LiteralPath $HdcPath)) { throw '未找到hdc，请指定-Toolchain。' }
@@ -87,8 +111,8 @@ if ($started -notmatch '(?i)success|start ability successfully') { throw 'Abilit
 $running=$false
 for ($attempt=0; $attempt -lt 5; $attempt++) {
   $active=Invoke-Device -Arguments @('shell','aa','dump','-a')
-  if ($active -match 'com\.mzk\.flowspace' -and $active -match 'EntryAbility') { $running=$true; break }
+  if (Test-FlowSpaceAbilityRecord -Dump $active) { $running=$true; break }
   Start-Sleep -Milliseconds 500
 }
-if (-not $running) { throw '启动命令已执行，但未观察到包与EntryAbility运行证据，请检查手机界面；未清数据。' }
+if (-not $running) { throw '启动命令已执行，但未在同一AbilityRecord中核对到包与EntryAbility；输出格式也可能不受支持，请检查实际aa输出及手机界面；未清数据。' }
 [pscustomobject]@{Status='InstalledAndAbilityObserved'; DeviceId=$DeviceId; ApiVersion=[int]$api; Bundle='com.mzk.flowspace'; Ability='EntryAbility'; SignedHapVerified=$verified; UpdateInstall=$true; GatewayMapped=[bool]$MapGateway; BackendAddress="http://127.0.0.1:$GatewayPort"; Note='已核对包和Ability运行；实际点击、导图/AI/导入导出仍需在手机验收。'}

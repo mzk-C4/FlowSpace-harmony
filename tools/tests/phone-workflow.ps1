@@ -34,6 +34,40 @@ try {
     $errors=$null; $null=[Management.Automation.Language.Parser]::ParseFile($path,[ref]$null,[ref]$errors)
     Assert-True ($errors.Count -eq 0) 'PowerShell syntax error'
   }; $passed++
+  # Extract just the production parser AST. Do not dot-source device workflow or bypass its signed-HAP gate.
+  $phoneAst=[Management.Automation.Language.Parser]::ParseFile($phone,[ref]$null,[ref]$null)
+  $parserAst=$phoneAst.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-FlowSpaceAbilityRecord'},$true)
+  Assert-True ($null -ne $parserAst) 'Missing production AbilityRecord parser'
+  Invoke-Expression $parserAst.Extent.Text
+  $record=@'
+      AbilityRecord ID #105
+        app name [FlowSpace]
+        main name [EntryAbility]
+        bundle name [com.mzk.flowspace]
+        state #FOREGROUND
+'@
+  Assert-True (Test-FlowSpaceAbilityRecord $record) 'Official record identity rejected'; $passed++
+  Assert-True (Test-FlowSpaceAbilityRecord ($record.Replace("`n","`r`n"))) 'CRLF record identity rejected'; $passed++
+  $splitRecords=@'
+      AbilityRecord ID #1
+        app name [FlowSpace]
+        main name [OtherAbility]
+        bundle name [com.mzk.flowspace]
+      AbilityRecord ID #2
+        app name [OtherApp]
+        main name [EntryAbility]
+        bundle name [com.example.other]
+'@
+  Assert-True (-not (Test-FlowSpaceAbilityRecord $splitRecords)) 'Cross-application identities were combined'; $passed++
+  Assert-True (-not (Test-FlowSpaceAbilityRecord ($record.Replace('com.mzk.flowspace]','com.mzk.flowspace.fake]')))) 'Bundle prefix accepted'; $passed++
+  Assert-True (-not (Test-FlowSpaceAbilityRecord ($record.Replace('EntryAbility]','OtherEntryAbility]')))) 'Ability substring accepted'; $passed++
+  Assert-True (-not (Test-FlowSpaceAbilityRecord "main name [EntryAbility]`nbundle name [com.mzk.flowspace]")) 'Unheaded fields accepted'; $passed++
+  Assert-True (-not (Test-FlowSpaceAbilityRecord "AbilityRecord ID #1`nmain name [EntryAbility]`nAbilityRecord ID #2`nbundle name [com.mzk.flowspace]")) 'Record boundary crossed'; $passed++
+  Assert-True (-not (Test-FlowSpaceAbilityRecord "AbilityRecord ID #1`nmain name [EntryAbility]`nMission ID #2`nbundle name [com.mzk.flowspace]")) 'Mission boundary crossed'; $passed++
+  Assert-True (-not (Test-FlowSpaceAbilityRecord "AbilityRecord ID #1`napp name [com.mzk.flowspace EntryAbility]")) 'Unrelated app-name text accepted'; $passed++
+  Assert-True (Test-FlowSpaceAbilityRecord ($splitRecords+"`n"+$record)) 'Valid later record was missed'; $passed++
+  $phoneSource=Get-Content -LiteralPath $phone -Raw
+  Assert-True ($phoneSource -match 'if \(Test-FlowSpaceAbilityRecord -Dump \$active\)' -and $phoneSource -notmatch '\$active -match .* -and \$active -match') 'Workflow does not use the strict record parser'; $passed++
   $result=& $build -DryRun
   Assert-True ($result.Status -eq 'ReadyForUnsignedBuild' -and -not $result.SignedHapVerified) 'Unsigned dryrun mislabeled'; $passed++
   Set-Content $env:FLOWSPACE_TEST_HDC_MODE none
