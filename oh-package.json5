@@ -1,1 +1,1 @@
-{ "modelVersion": "6.0.0", "name": "flowspace", "version": "2.0.0", "description": "FlowSpace AI思维导图", "dependencies": {}, "devDependencies": {} }
+{ "modelVersion": "6.0.0", "name": "flowspace", "version": "2.0.1", "description": "FlowSpace AI思维导图", "dependencies": {}, "devDependencies": {} }

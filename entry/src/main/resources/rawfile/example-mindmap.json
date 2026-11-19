@@ -1,0 +1,98 @@
+{
+  "format": "flowspace-mindmap",
+  "version": 1,
+  "document": {
+    "schemaVersion": 1,
+    "documentId": "flowspace-example-signals",
+    "title": "信号与系统",
+    "revision": 0,
+    "rootId": "signals",
+    "nodes": [
+      {
+        "id": "signals",
+        "parentId": "",
+        "order": 0,
+        "text": "信号与系统",
+        "note": "从信号、系统和变换三个角度复习。",
+        "collapsed": false
+      },
+      {
+        "id": "signal",
+        "parentId": "signals",
+        "order": 0,
+        "text": "信号表征",
+        "note": "观察定义域和周期性。",
+        "collapsed": false
+      },
+      {
+        "id": "system",
+        "parentId": "signals",
+        "order": 1,
+        "text": "系统性质",
+        "note": "用叠加和时移检验系统性质。",
+        "collapsed": false
+      },
+      {
+        "id": "transform",
+        "parentId": "signals",
+        "order": 2,
+        "text": "频域分析",
+        "note": "将时域描述转换为频域表示。",
+        "collapsed": false
+      },
+      {
+        "id": "continuous",
+        "parentId": "signal",
+        "order": 0,
+        "text": "连续与离散",
+        "note": "",
+        "collapsed": false
+      },
+      {
+        "id": "periodic",
+        "parentId": "signal",
+        "order": 1,
+        "text": "周期与非周期",
+        "note": "",
+        "collapsed": false
+      },
+      {
+        "id": "linear",
+        "parentId": "system",
+        "order": 0,
+        "text": "线性",
+        "note": "",
+        "collapsed": false
+      },
+      {
+        "id": "invariant",
+        "parentId": "system",
+        "order": 1,
+        "text": "时不变",
+        "note": "",
+        "collapsed": false
+      },
+      {
+        "id": "fourier",
+        "parentId": "transform",
+        "order": 0,
+        "text": "傅里叶变换",
+        "note": "",
+        "collapsed": false
+      },
+      {
+        "id": "sampling",
+        "parentId": "transform",
+        "order": 1,
+        "text": "采样",
+        "note": "",
+        "collapsed": false
+      }
+    ],
+    "layout": "right",
+    "sourceText": "这份可编辑的示例把信号与系统分为信号表征、系统性质和频域分析。",
+    "messages": [],
+    "createdAt": "2026-11-19T00:00:00.000Z",
+    "updatedAt": "2026-11-19T00:00:00.000Z"
+  }
+}

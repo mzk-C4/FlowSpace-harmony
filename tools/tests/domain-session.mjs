@@ -8,9 +8,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const stage = mkdtempSync(join(tmpdir(), 'flowspace-domain-test-'));
+const exampleFile = join(root, 'entry/src/main/resources/rawfile/example-mindmap.json');
+writeFileSync(join(stage, 'example-mindmap.json'), readFileSync(exampleFile));
 for (const [source, target] of [['domain/MindMap', 'MindMap'], ['domain/DocumentSession', 'DocumentSession'], ['storage/ExportService', 'ExportService']]) {
   const text = readFileSync(join(root, 'entry/src/main/ets', source + '.ets'), 'utf8')
     .replace(/^import .* from '@ohos[^']+';\r?\n/gm, '')
+    .replace("from '../../resources/rawfile/example-mindmap.json'", "from './example-mindmap.json' with { type: 'json' }")
     .replace(/from '(?:\.\/|\.\.\/domain\/)(MindMap|DocumentSession)'/g, "from './$1.mjs'")
     .replace(/import \{([^}]+)\}/g, (_, names) => 'import {' + names.split(',').map(n => n.trim())
       .filter(n => ['cloneDocument', 'newId', 'validateDocument', 'createDocument', 'defaultSettings'].includes(n)).join(',') + '}');
@@ -182,4 +185,21 @@ test('PNG draws entire collapsed/offscreen graph in both layouts and caps raster
   }
   assert.ok(pixelReleased && packerReleased);
   delete globalThis.drawing; delete globalThis.image;
+});
+
+test('the offline signals example uses a validated backup and repeated opens are separately editable', () => {
+  const text = readFileSync(exampleFile, 'utf8');
+  assert.equal(exportService.loadExample().documentId, exportService.exampleId);
+  assert.deepEqual(exportService.loadExample().nodes, JSON.parse(text).document.nodes);
+  const first = exportService.parseBackup(text), second = exportService.parseBackup(text);
+  validateDocument(first);
+  assert.equal(first.title, '信号与系统');
+  assert.equal(first.nodes.length, 10);
+  assert.notEqual(first.documentId, second.documentId);
+  assert.notEqual(first.documentId, JSON.parse(text).document.documentId);
+  const session = new DocumentSession(first);
+  session.editNode('signal', '信号的分类', '本地编辑');
+  assert.notEqual(session.document.nodes.find(node => node.id === 'signal').text, second.nodes.find(node => node.id === 'signal').text);
+  session.undo();
+  assert.deepEqual(session.document.nodes, second.nodes);
 });

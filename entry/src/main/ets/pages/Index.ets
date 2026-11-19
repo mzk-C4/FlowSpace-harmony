@@ -1,3 +1,4 @@
+import { appSymbol } from '../ui/Controls';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { MindMapDocument, DocumentSummary, AppSettings, GenerationRequest, GenerationCandidate, ChatMessage,
   HealthStatus, EditorAction, LearningResource, createDocument, defaultSettings, cloneDocument, newId } from '../domain/MindMap';
@@ -29,6 +30,7 @@ struct Index {
   @Local loading: boolean = true;
   @Local canUndo: boolean = false;
   @Local canRedo: boolean = false;
+  @Local generatedFit: number = 0;
   @Local changingDocument: boolean = false;
   private session: DocumentSession = new DocumentSession(this.document);
   private pathStack: NavPathStack = new NavPathStack();
@@ -109,7 +111,15 @@ struct Index {
     return await this.persist();
   }
 
+  private showPendingCandidate(): boolean {
+    if (this.candidate === null) return false;
+    this.currentTab = 1;
+    this.message = '请先应用或放弃正在预览的修改。';
+    return true;
+  }
+
   private async openDocument(id: string): Promise<void> {
+    if (this.showPendingCandidate()) return;
     if (this.busy || this.changingDocument) { this.message = '请等待保存完成或取消生成，再切换导图'; return; }
     this.changingDocument = true;
     try {
@@ -122,6 +132,7 @@ struct Index {
   }
 
   private async newMap(): Promise<void> {
+    if (this.showPendingCandidate()) return;
     if (!this.ready || this.busy || this.changingDocument) { this.message = '请等待初始化、保存完成或取消当前生成'; return; }
     this.changingDocument = true;
     try {
@@ -159,7 +170,7 @@ struct Index {
 
   private async generate(instruction: string, create: boolean = false): Promise<void> {
     const text: string = instruction.trim();
-    if (!this.ready || this.busy || this.changingDocument || this.candidate !== null) return;
+    if (!this.ready || this.busy || this.changingDocument || this.showPendingCandidate()) return;
     if (!text || text.length > 20000) { this.message = '请输入1至20,000个字符'; return; }
     if (create) {
       this.changingDocument = true;
@@ -191,6 +202,7 @@ struct Index {
         result.document.documentId !== request.documentId) throw new Error('服务返回了不匹配的候选，原图已保留');
       if (create && request.baseRevision === 0 && this.session.document.revision === result.baseRevision) {
         this.session.applyCandidate(result);
+        this.generatedFit++;
         this.lastCreateCompleted = true;
         this.appendMessage('assistant', result.summary || '导图已生成，可以继续编辑或选择分支扩写。');
         this.sync(); await this.persist();
@@ -242,6 +254,7 @@ struct Index {
 
   private async deleteDocument(id: string): Promise<void> {
     if (this.changingDocument) return;
+    if (id === this.document.documentId && this.showPendingCandidate()) return;
     if (this.busy && id === this.document.documentId) { this.message = '请先取消生成'; return; }
     this.changingDocument = true;
     try {
@@ -266,13 +279,16 @@ struct Index {
     } catch (error) { this.connectionMessage = '连接失败：' + (error as Error).message; }
   }
 
-  private async importDocument(): Promise<void> {
+  private async importDocument(example: boolean = false): Promise<void> {
+    if (this.showPendingCandidate()) return;
     if (this.busy || this.changingDocument) { this.message = '请等待保存完成或取消当前生成'; return; }
     this.changingDocument = true;
     try {
       if (!await this.flushCurrent()) return;
-      const doc: MindMapDocument = await exportService.importDocument(this.context());
-      await documentRepository.save(doc); this.useDocument(doc); this.saveStatus = '已保存';
+      const existing: MindMapDocument | null = example ? await documentRepository.get(exportService.exampleId) : null;
+      const doc: MindMapDocument = existing || (example ? exportService.loadExample() : await exportService.importDocument(this.context()));
+      if (existing === null) { await documentRepository.save(doc); }
+      this.useDocument(doc); this.saveStatus = '已保存';
       this.documents = await documentRepository.list(); this.currentTab = 1; this.message = '';
     } catch (error) { this.message = (error as Error).message; }
     finally { this.changingDocument = false; }
@@ -291,11 +307,14 @@ struct Index {
   }
 
   @Builder
-  tabLabel(label: string, glyph: string, index: number) {
-    Column({ space: 2 }) {
-      Text(glyph).fontSize(21).fontWeight(FontWeight.Medium).fontColor(this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
-      Text(label).fontSize(11).fontColor(this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
-    }.height(56).width('100%').justifyContent(FlexAlign.Center)
+  tabLabel(label: string, glyph: Resource, index: number) {
+    Column({ space: 3 }) {
+      appSymbol(glyph, 22, this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
+      Text(label).fontSize(12).fontWeight(this.currentTab === index ? FontWeight.Medium : FontWeight.Regular)
+        .fontColor(this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
+    }.height('100%').width('100%').justifyContent(FlexAlign.Center)
+      .accessibilityText(label + (this.currentTab === index ? '，当前页面' : ''))
+      .id('tab-' + index)
   }
 
   build() {
@@ -317,33 +336,37 @@ struct Index {
           Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
             TabContent() {
               HomePage({ documents: this.documents, busy: this.busy || this.changingDocument,
+                onOpenExample: () => { this.importDocument(true); },
                 onGenerate: (text: string) => { this.generate(text, true); },
                 onOpenDocument: (id: string) => { this.openDocument(id); }, onNewMap: () => { this.newMap(); },
                 onOpenResource: (resource: LearningResource) => { this.openResource(resource); } })
-            }.tabBar(this.tabLabel('首页', '⌂', 0))
+            }.tabBar(this.tabLabel('首页', $r('sys.symbol.house'), 0))
             TabContent() {
               DIYPage({ document: this.candidate !== null ? this.candidate.document : this.document,
                 selectedNodeId: this.selectedNodeId, canUndo: this.canUndo, canRedo: this.canRedo,
                 busy: this.busy, progress: this.progress, saveStatus: this.saveStatus,
                 candidateSummary: this.candidate !== null ? (this.candidate.summary || '预览生成结果，确认后应用') : '',
-                errorMessage: this.message, reduceMotion: this.settings.reduceMotion,
+                canApply: this.candidate !== null && this.candidate.baseRevision === this.document.revision,
+                appearance: this.settings.themeMode, generatedFit: this.generatedFit, errorMessage: this.message, reduceMotion: this.settings.reduceMotion,
                 onSelect: (id: string) => { this.selectedNodeId = id; }, onAction: (action: EditorAction) => { return this.action(action); },
                 onGenerate: (text: string) => { this.generate(text); }, onCancel: () => { generationClient.cancel(); },
                 onApplyCandidate: () => { this.applyCandidate(); }, onDiscardCandidate: () => { this.discardCandidate(); },
                 onExport: (format: string) => { this.exportDocument(format); } })
-            }.tabBar(this.tabLabel('DIY 导图', '◇', 1))
+            }.tabBar(this.tabLabel('DIY 导图', $r('sys.symbol.rectangle_3_group'), 1))
             TabContent() {
               LibraryPage({ onOpenResource: (resource: LearningResource) => { this.openResource(resource); },
                 onUseTopic: (text: string) => { this.generate(text, true); } })
-            }.tabBar(this.tabLabel('资料库', '▤', 2))
+            }.tabBar(this.tabLabel('资料库', $r('sys.symbol.book_pages'), 2))
             TabContent() {
               ProfilePage({ settings: this.settings, documents: this.documents, connectionMessage: this.connectionMessage,
                 onSaveSettings: (settings: AppSettings) => { this.saveSettings(settings); },
                 onCheckConnection: () => { this.checkConnection(); }, onOpenDocument: (id: string) => { this.openDocument(id); },
                 onRenameDocument: (id: string, title: string) => { this.renameDocument(id, title); },
                 onDeleteDocument: (id: string) => { this.deleteDocument(id); }, onImport: () => { this.importDocument(); } })
-            }.tabBar(this.tabLabel('个人', '○', 3))
-          }.barMode(BarMode.Fixed).scrollable(false).layoutWeight(1)
+            }.tabBar(this.tabLabel('个人', $r('sys.symbol.person'), 3))
+          }.barMode(BarMode.Fixed).barHeight(60).barBackgroundColor($r('app.color.fs_surface'))
+            .divider({ strokeWidth: 0.5, color: $r('app.color.fs_border') })
+            .animationDuration(this.settings.reduceMotion ? 0 : 120).scrollable(false).layoutWeight(1)
             .backgroundColor($r('app.color.fs_bg')).onChange((index: number) => { this.currentTab = index; })
         }
       }.width('100%').height('100%').backgroundColor($r('app.color.fs_bg'))

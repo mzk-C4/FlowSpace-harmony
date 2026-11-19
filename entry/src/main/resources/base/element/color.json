@@ -1,36 +1,52 @@
 {
   "color": [
     {
-      "value": "#EEECFD",
-      "name": "fs_soft"
+      "name": "fs_bg",
+      "value": "#F5F5F7"
     },
     {
-      "value": "#BB4040",
-      "name": "fs_danger"
+      "name": "fs_surface",
+      "value": "#FFFFFF"
     },
     {
-      "value": "#252733",
-      "name": "fs_text"
+      "name": "fs_group",
+      "value": "#EAEAF0"
     },
     {
-      "value": "#635BDB",
-      "name": "fs_accent"
+      "name": "fs_text",
+      "value": "#1D1D1F"
     },
     {
-      "value": "#767985",
-      "name": "fs_muted"
+      "name": "fs_muted",
+      "value": "#62636D"
     },
     {
-      "value": "#FFFFFF",
-      "name": "fs_surface"
+      "name": "fs_accent",
+      "value": "#5354C7"
     },
     {
-      "value": "#F8F7F3",
-      "name": "fs_bg"
+      "name": "fs_on_accent",
+      "value": "#FFFFFF"
     },
     {
-      "value": "#E5E4E9",
-      "name": "fs_border"
+      "name": "fs_soft",
+      "value": "#ECECFA"
+    },
+    {
+      "name": "fs_border",
+      "value": "#DADAE2"
+    },
+    {
+      "name": "fs_connector",
+      "value": "#81849B"
+    },
+    {
+      "name": "fs_grid",
+      "value": "#DEDFE7"
+    },
+    {
+      "name": "fs_danger",
+      "value": "#A62E3C"
     }
   ]
 }

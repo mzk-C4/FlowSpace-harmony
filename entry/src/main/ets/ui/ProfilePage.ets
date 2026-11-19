@@ -1,3 +1,4 @@
+import { appSymbol, IconButton } from './Controls';
 import { url } from '@kit.ArkTS';
 import { AppSettings, DocumentSummary, defaultSettings } from '../domain/MindMap';
 
@@ -27,6 +28,7 @@ struct ProfileDocumentRow {
   @Event onOpen: (id: string) => void = () => {};
   @Event onRename: (id: string, title: string) => void = () => {};
   @Event onDelete: (summary: DocumentSummary) => void = () => {};
+  @Local actionsOpen: boolean = false;
   @Local editing: boolean = false;
   @Local titleDraft: string = '';
 
@@ -39,20 +41,24 @@ struct ProfileDocumentRow {
 
   build() {
     Column({ space: 10 }) {
-      Button({ type: ButtonType.Normal }) {
-        Column({ space: 6 }) {
-          Text(this.summary.title).fontSize(17).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.fs_text')).maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.summary.nodeCount.toString() + ' 个节点 · ' + this.updatedLabel())
-            .fontSize(12).fontColor($r('app.color.fs_muted'))
-        }.width('100%').alignItems(HorizontalAlign.Start)
-      }.width('100%').constraintSize({ minHeight: 60 }).padding(0)
-        .backgroundColor(Color.Transparent).borderRadius(8)
-        .accessibilityText('打开导图：' + this.summary.title)
-        .onClick(() => { this.onOpen(this.summary.documentId); })
+      Row({ space: 8 }) {
+        Button({ type: ButtonType.Normal }) {
+          Row({ space: 12 }) {
+            appSymbol($r('sys.symbol.doc_text'), 22, $r('app.color.fs_accent'))
+            Column({ space: 4 }) {
+              Text(this.summary.title).fontSize(17).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+                .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+              Text(this.summary.nodeCount + ' 个节点 · ' + this.updatedLabel()).fontSize(13).fontColor($r('app.color.fs_muted'))
+            }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+          }.width('100%')
+        }.layoutWeight(1).height('auto').constraintSize({ minHeight: 48 }).padding(0).backgroundColor(Color.Transparent)
+          .accessibilityText('打开导图：' + this.summary.title).onClick(() => this.onOpen(this.summary.documentId))
+        IconButton({ icon: $r('sys.symbol.ellipsis_circle'), label: '管理导图：' + this.summary.title,
+          onActivate: () => { this.actionsOpen = !this.actionsOpen; this.editing = false; } })
+      }.width('100%')
       if (this.editing) {
         TextInput({ text: this.titleDraft, placeholder: '输入导图名称' })
-          .height(48).maxLength(100).fontColor($r('app.color.fs_text'))
+          .height(48).maxLength(200).fontColor($r('app.color.fs_text'))
           .backgroundColor($r('app.color.fs_bg')).accessibilityText('新的导图名称')
           .onChange((value: string) => { this.titleDraft = value; })
         Row({ space: 8 }) {
@@ -60,14 +66,14 @@ struct ProfileDocumentRow {
             .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(10)
             .onClick(() => { this.editing = false; })
           Button('保存名称', { type: ButtonType.Normal }).height(44).layoutWeight(1)
-            .backgroundColor($r('app.color.fs_accent')).fontColor(Color.White).borderRadius(10)
+            .backgroundColor($r('app.color.fs_accent')).fontColor($r('app.color.fs_on_accent')).borderRadius(10)
             .enabled(this.titleDraft.trim().length > 0 && this.titleDraft.trim() !== this.summary.title)
             .onClick(() => {
               this.onRename(this.summary.documentId, this.titleDraft.trim());
               this.editing = false;
             })
         }.width('100%')
-      } else {
+      } else if (this.actionsOpen) {
         Row({ space: 8 }) {
           Button('重命名', { type: ButtonType.Normal }).height(44).layoutWeight(1)
             .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(10)
@@ -81,7 +87,7 @@ struct ProfileDocumentRow {
       }
     }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
       .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-      .border({ width: 1, color: $r('app.color.fs_border') })
+
   }
 }
 
@@ -102,6 +108,8 @@ export struct ProfilePage {
   @Local themeDraft: string = 'system';
   @Local motionDraft: boolean = false;
   @Local settingsError: string = '';
+  @Local connectionOpen: boolean = false;
+  @Local aboutOpen: boolean = false;
   private source: ProfileDocumentSource = new ProfileDocumentSource();
 
   aboutToAppear(): void {
@@ -143,10 +151,12 @@ export struct ProfilePage {
       if ((address.protocol !== 'http:' && address.protocol !== 'https:') || address.hostname.length === 0 ||
         address.username.length > 0 || address.password.length > 0 || address.search.length > 0 ||
         address.hash.length > 0 || /\s/.test(value)) {
+        this.connectionOpen = true;
         this.settingsError = '请输入 HTTP 或 HTTPS 服务地址，不含账号、查询参数或片段。';
         return;
       }
     } catch {
+      this.connectionOpen = true;
       this.settingsError = '服务地址格式不正确，例如 http://192.168.1.10:8787';
       return;
     }
@@ -169,142 +179,125 @@ export struct ProfilePage {
   }
 
   @Builder
-  sectionTitle(title: string, description: string) {
-    Column({ space: 5 }) {
-      Text(title).fontSize(20).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
-      Text(description).fontSize(13).fontColor($r('app.color.fs_muted')).lineHeight(20)
-    }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 12, bottom: 4 })
+  sectionTitle(title: string) {
+    Text(title).fontSize(21).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text')).width('100%')
+      .padding({ top: 12, bottom: 2 })
   }
 
   @Builder
   themeButton(label: string, mode: string) {
-    Button(label, { type: ButtonType.Normal }).layoutWeight(1).height(46).borderRadius(10)
-      .fontSize(14).fontColor(this.themeDraft === mode ? Color.White : $r('app.color.fs_text'))
-      .backgroundColor(this.themeDraft === mode ? $r('app.color.fs_accent') : $r('app.color.fs_bg'))
+    Button(label, { type: ButtonType.Normal }).layoutWeight(1).height(44).borderRadius(10)
+      .fontSize(14).fontWeight(this.themeDraft === mode ? FontWeight.Medium : FontWeight.Regular)
+      .fontColor(this.themeDraft === mode ? $r('app.color.fs_text') : $r('app.color.fs_muted'))
+      .backgroundColor(this.themeDraft === mode ? $r('app.color.fs_surface') : Color.Transparent)
       .accessibilityText(label + (this.themeDraft === mode ? '，已选择' : ''))
       .onClick(() => { this.themeDraft = mode; })
   }
 
+  @Builder
+  settingsRow(title: string, icon: Resource, trailing: string, action: () => void) {
+    Button({ type: ButtonType.Normal }) {
+      Row({ space: 12 }) {
+        appSymbol(icon, 20, $r('app.color.fs_accent'))
+        Text(title).fontSize(16).fontColor($r('app.color.fs_text')).layoutWeight(1)
+        if (trailing) { Text(trailing).fontSize(14).fontColor($r('app.color.fs_muted')) }
+        appSymbol($r('sys.symbol.chevron_right'), 13, $r('app.color.fs_muted'))
+      }.width('100%')
+    }.width('100%').height('auto').constraintSize({ minHeight: 52 }).padding({ left: 16, right: 16 })
+      .backgroundColor(Color.Transparent).onClick(action)
+  }
+
+  @Builder
+  connectionForm() {
+    Column({ space: 10 }) {
+      Text('后端地址').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+      TextInput({ text: this.backendDraft, placeholder: 'http://192.168.1.10:8787' }).height(48)
+        .fontSize(16).fontColor($r('app.color.fs_text')).backgroundColor($r('app.color.fs_bg'))
+        .maxLength(2048).accessibilityText('后端地址').id('profile-backend')
+        .onChange((value: string) => { this.backendDraft = value; this.settingsError = ''; })
+      Text('同一 Wi-Fi 下填写电脑的局域网地址。使用 USB 端口映射时可填 127.0.0.1。')
+        .fontSize(13).lineHeight(20).fontColor($r('app.color.fs_muted'))
+      if (this.settingsError) { Text(this.settingsError).fontSize(14).fontColor($r('app.color.fs_danger')) }
+      Button('测试连接', { type: ButtonType.Normal }).height(44).width('100%').borderRadius(12)
+        .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
+        .enabled(!this.settingsDirty()).onClick(() => this.onCheckConnection())
+    }.width('100%').alignItems(HorizontalAlign.Start).padding({ left: 16, right: 16, bottom: 16 })
+  }
+
   build() {
-    List({ space: 12 }) {
+    List({ space: 10 }) {
       ListItem() {
         Column({ space: 12 }) {
-          Text('04 / 我的空间').fontSize(12).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_accent'))
-          Text('想法留在这里').fontSize(30).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
-          Text('本地文档 · 偏好设置').fontSize(14).fontColor($r('app.color.fs_muted'))
-          Row({ space: 12 }) {
-            Text('F').fontSize(25).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_accent'))
-              .width(52).height(52).textAlign(TextAlign.Center).backgroundColor($r('app.color.fs_soft')).borderRadius(16)
-            Column({ space: 4 }) {
-              Text('我的 FlowSpace').fontSize(18).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-              Text('无需登录，随时整理你的思路').fontSize(12).fontColor($r('app.color.fs_muted'))
-            }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          }.width('100%').padding(16).backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-          this.sectionTitle('本地文档', '搜索已保存的导图，继续上次的思考。')
-          TextInput({ text: this.searchText, placeholder: '搜索导图名称' }).height(48)
-            .fontColor($r('app.color.fs_text')).backgroundColor($r('app.color.fs_surface'))
-            .accessibilityText('搜索本地导图').maxLength(100)
+          Text('个人').fontSize(33).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
+          Search({ value: this.searchText, placeholder: '搜索本地导图' }).height(46).borderRadius(13)
+            .fontColor($r('app.color.fs_text')).placeholderColor($r('app.color.fs_muted')).backgroundColor($r('app.color.fs_group'))
+            .accessibilityText('搜索本地导图').maxLength(200)
             .onChange((value: string) => { this.searchText = value; this.filterDocuments(); })
-          Text(this.searchText.trim().length > 0 ? '找到 ' + this.resultCount.toString() + ' 份导图' :
-            '共 ' + this.documents.length.toString() + ' 份已保存导图')
-            .fontSize(12).fontColor($r('app.color.fs_muted'))
-        }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 12 })
+          Row() {
+            Text('本地导图').fontSize(22).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text')).layoutWeight(1)
+            Text(this.resultCount + ' 份').fontSize(14).fontColor($r('app.color.fs_muted'))
+          }.width('100%').padding({ top: 8 })
+        }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 24 })
       }
       if (this.resultCount === 0) {
         ListItem() {
-          Column({ space: 8 }) {
-            Text(this.documents.length === 0 ? '还没有保存的导图' : '没有匹配的导图')
-              .fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Text(this.documents.length === 0 ? '在 DIY 页面创建并保存，或从下方恢复 JSON 备份。' : '换一个关键词试试。')
-              .fontSize(13).fontColor($r('app.color.fs_muted')).lineHeight(20)
-          }.width('100%').padding(24).backgroundColor($r('app.color.fs_surface')).borderRadius(16)
+          Text(this.documents.length === 0 ? '暂无本地导图，可在首页创建或从备份恢复。' : '没有匹配的导图，试试其他关键词。')
+            .fontSize(15).lineHeight(23).fontColor($r('app.color.fs_muted')).width('100%')
+            .padding(16).borderRadius(16).backgroundColor($r('app.color.fs_surface'))
         }
       }
       LazyForEach(this.source, (summary: DocumentSummary) => {
         ListItem() {
           ProfileDocumentRow({ summary: summary,
-            onOpen: (id: string) => { this.onOpenDocument(id); },
-            onRename: (id: string, title: string) => { this.onRenameDocument(id, title); },
-            onDelete: (doc: DocumentSummary) => { this.confirmDelete(doc); } })
+            onOpen: (id: string) => this.onOpenDocument(id),
+            onRename: (id: string, title: string) => this.onRenameDocument(id, title),
+            onDelete: (doc: DocumentSummary) => this.confirmDelete(doc) })
         }
-      }, (summary: DocumentSummary): string => summary.documentId + ':' + summary.updatedAt + ':' +
-        summary.title + ':' + summary.nodeCount.toString())
+      }, (summary: DocumentSummary): string => summary.documentId + ':' + summary.updatedAt + ':' + summary.title + ':' + summary.nodeCount)
       ListItem() {
-        Column({ space: 12 }) {
-          this.sectionTitle('备份与恢复', '让重要的思路多一份备份。')
-          Column({ space: 12 }) {
-            Text('从 JSON 恢复').fontSize(17).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Text('选择 FlowSpace 导出的 JSON 文件。恢复后会创建一份新导图；原有文档会保留。')
-              .fontSize(13).fontColor($r('app.color.fs_muted')).lineHeight(21)
-            Button('选择 JSON 备份', { type: ButtonType.Normal }).height(48).width('100%').borderRadius(10)
-              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
-              .onClick(() => { this.onImport(); })
-            Text('导出入口位于 DIY 编辑页，支持 JSON、Markdown 和 PNG。')
-              .fontSize(12).fontColor($r('app.color.fs_muted')).lineHeight(20)
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
-            .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-          this.sectionTitle('使用偏好', '按你的习惯安排这个空间。')
-          Column({ space: 14 }) {
+        Column({ space: 10 }) {
+          this.sectionTitle('备份与恢复')
+          Column() {
+            this.settingsRow('从 JSON 备份恢复', $r('sys.symbol.square_and_arrow_down'), '', () => this.onImport())
+            Text('恢复后会创建副本。可在编辑器中导出导图。').fontSize(13).lineHeight(20)
+              .fontColor($r('app.color.fs_muted')).width('100%').padding({ left: 16, right: 16, bottom: 12 })
+          }.width('100%').borderRadius(16).backgroundColor($r('app.color.fs_surface'))
+          this.sectionTitle('偏好设置')
+          Column({ space: 10 }) {
             Text('外观').fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Row({ space: 8 }) {
+            Row({ space: 2 }) {
               this.themeButton('跟随系统', 'system')
               this.themeButton('浅色', 'light')
               this.themeButton('深色', 'dark')
-            }.width('100%')
-            Row({ space: 12 }) {
-              Column({ space: 5 }) {
-                Text('减少动效').fontSize(16).fontColor($r('app.color.fs_text'))
-                Text('减少画布与页面的移动效果').fontSize(12).fontColor($r('app.color.fs_muted'))
-              }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-              Toggle({ type: ToggleType.Switch, isOn: this.motionDraft }).height(48).width(56)
+            }.width('100%').padding(3).borderRadius(13).backgroundColor($r('app.color.fs_group'))
+            Divider().color($r('app.color.fs_border'))
+            Row() {
+              Text('减少动效').fontSize(16).fontColor($r('app.color.fs_text')).layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: this.motionDraft }).height(44).width(54)
                 .selectedColor($r('app.color.fs_accent')).accessibilityText('减少动效')
                 .onChange((value: boolean) => { this.motionDraft = value; })
             }.width('100%')
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
-            .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-          this.sectionTitle('AI 服务', '配置你自己的 FlowSpace 后端。')
-          Column({ space: 12 }) {
-            Text('后端服务地址').fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            TextInput({ text: this.backendDraft, placeholder: 'http://192.168.1.10:8787' }).height(48)
-              .fontSize(14).fontColor($r('app.color.fs_text')).backgroundColor($r('app.color.fs_bg'))
-              .maxLength(2048).accessibilityText('后端服务地址')
-              .onChange((value: string) => { this.backendDraft = value; this.settingsError = ''; })
-            Text('手机请填写可访问的电脑局域网地址。127.0.0.1 指向手机本身；API 密钥由后端管理。')
-              .fontSize(12).fontColor($r('app.color.fs_muted')).lineHeight(20)
-            if (this.settingsError.length > 0) {
-              Text(this.settingsError).fontSize(13).fontColor($r('app.color.fs_danger')).lineHeight(20)
+          }.width('100%').alignItems(HorizontalAlign.Start).padding(16).borderRadius(16).backgroundColor($r('app.color.fs_surface'))
+          Column() {
+            this.settingsRow('AI 服务', $r('sys.symbol.connection'), this.connectionOpen ? '收起' : '连接设置',
+              () => { this.connectionOpen = !this.connectionOpen; })
+            if (this.connectionOpen) { this.connectionForm() }
+            Divider().color($r('app.color.fs_border')).margin({ left: 48 })
+            this.settingsRow('关于 FlowSpace', $r('sys.symbol.book'), this.aboutOpen ? '收起' : '2.0.1', () => { this.aboutOpen = !this.aboutOpen; })
+            if (this.aboutOpen) {
+              Text('导图、原文和对话保存在本机。使用 AI 时，输入和相关导图会发往你配置的后端和模型。卸载前可导出 JSON 备份。')
+                .fontSize(14).lineHeight(22).fontColor($r('app.color.fs_muted'))
+                .padding({ left: 16, right: 16, bottom: 16 }).width('100%')
             }
-            Button('保存偏好与地址', { type: ButtonType.Normal }).height(48).width('100%').borderRadius(10)
-              .backgroundColor($r('app.color.fs_accent')).fontColor(Color.White).enabled(this.settingsDirty())
-              .onClick(() => { this.saveSettings(); })
-            if (this.settingsDirty()) {
-              Text('有未保存的设置，保存后可测试连接。').fontSize(12).fontColor($r('app.color.fs_muted'))
-            }
-            Button('测试已保存地址的连接', { type: ButtonType.Normal }).height(48).width('100%').borderRadius(10)
-              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
-              .enabled(!this.settingsDirty()).onClick(() => { this.onCheckConnection(); })
-            if (this.connectionMessage.length > 0) {
-              Text('最近一次连接检测').fontSize(12).fontColor($r('app.color.fs_muted'))
-              Text(this.connectionMessage).fontSize(13).fontColor($r('app.color.fs_text')).lineHeight(21)
-            }
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
-            .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-          this.sectionTitle('关于 FlowSpace', '把复杂知识，整理成清晰的思路。')
-          Column({ space: 12 }) {
-            Text('为工科学习而做的思维导图工具').fontSize(16).fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.fs_text'))
-            Text('支持自然语言生成、对话修改、手动编辑与文件导出。学习资源会打开来源页面，许可与使用条件以来源说明为准。')
-              .fontSize(13).fontColor($r('app.color.fs_muted')).lineHeight(22)
-            Text('你的本地数据').fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Text('导图、原文、对话记录和偏好保存在本机，不提供账号或云同步。卸载或清除应用数据可能丢失文档，请定期导出 JSON。')
-              .fontSize(13).fontColor($r('app.color.fs_muted')).lineHeight(22)
-            Text('使用 AI 时，输入内容和相关导图会发送至你配置的后端及其模型服务。请只提交你愿意交由该服务处理的内容。')
-              .fontSize(13).fontColor($r('app.color.fs_muted')).lineHeight(22)
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
-            .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-          Text('FlowSpace 2.0.0 · AI 思维导图').fontSize(12).fontColor($r('app.color.fs_muted'))
-            .width('100%').textAlign(TextAlign.Center).padding({ top: 12, bottom: 28 })
-        }.width('100%').alignItems(HorizontalAlign.Start)
+          }.width('100%').borderRadius(16).clip(true).backgroundColor($r('app.color.fs_surface'))
+          if (this.settingsDirty()) {
+            Button('保存更改', { type: ButtonType.Normal }).height(48).width('100%').borderRadius(14)
+              .fontColor($r('app.color.fs_on_accent')).backgroundColor($r('app.color.fs_accent')).onClick(() => this.saveSettings())
+          }
+          if (this.connectionMessage) {
+            Text(this.connectionMessage).fontSize(14).lineHeight(22).fontColor($r('app.color.fs_text')).width('100%')
+          }
+        }.width('100%').alignItems(HorizontalAlign.Start).padding({ bottom: 24 })
       }
     }.width('100%').height('100%').padding({ left: 20, right: 20 })
       .cachedCount(6).scrollBar(BarState.Auto).backgroundColor($r('app.color.fs_bg'))
