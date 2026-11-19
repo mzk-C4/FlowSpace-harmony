@@ -1,3 +1,4 @@
+import { appSymbol } from './Controls';
 import { LearningResource } from '../domain/MindMap';
 import { OPEN_RESOURCES, RESOURCE_CATEGORIES, RESOURCE_LICENSE_URLS, findOpenResources } from '../data/ResourceCatalog';
 
@@ -30,6 +31,7 @@ export struct LibraryPage {
   @Local resultCount: number = OPEN_RESOURCES.length;
   @Local showingDetails: boolean = false;
   @Local selectedResource: LearningResource = OPEN_RESOURCES[0];
+  @Local pendingTopic: string = '';
   private dataSource: ResourceDataSource = new ResourceDataSource();
   private listScroller: Scroller = new Scroller();
 
@@ -43,6 +45,7 @@ export struct LibraryPage {
   private openDetails(resource: LearningResource): void {
     this.getUIContext().getFocusController().clearFocus();
     this.selectedResource = resource;
+    this.pendingTopic = '';
     this.showingDetails = true;
   }
 
@@ -57,157 +60,165 @@ export struct LibraryPage {
   }
 
   private useTopic(): void {
+    if (this.pendingTopic.length > 0) return;
     const resource: LearningResource = this.selectedResource;
-    this.onUseTopic('请围绕“' + resource.title + '”的学习主题，生成一份工科知识思维导图，包含前置知识、' +
+    this.pendingTopic = '请围绕“' + resource.title + '”的学习主题，生成一份工科知识思维导图，包含前置知识、' +
       '核心概念、概念关系、练习建议和学习顺序。参考主题介绍：' + resource.description +
       '\n这里只提供主题与简短介绍，没有读取原站全文；不要声称已阅读、总结或引用原站具体章节。' +
-      '请按通用知识组织，并提示用户对照官方资料核实。');
+      '请按通用知识组织，并提示用户对照官方资料核实。';
+    this.showingDetails = false;
+  }
+
+  private detailClosed(): void {
+    this.showingDetails = false;
+    const topic: string = this.pendingTopic;
+    this.pendingTopic = '';
+    if (topic.length > 0) this.onUseTopic(topic);
   }
 
   @Builder
-  resourceCard(resource: LearningResource) {
+  resourceRow(resource: LearningResource) {
     Button({ type: ButtonType.Normal }) {
-      Column({ space: 10 }) {
-        Row({ space: 8 }) {
-          Text(resource.category).fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.fs_accent')).padding({ left: 9, right: 9, top: 5, bottom: 5 })
-            .backgroundColor($r('app.color.fs_soft')).borderRadius(6)
-          Text(resource.language).fontSize(12).fontColor($r('app.color.fs_muted')).layoutWeight(1)
-          Text('详情 ›').fontSize(13).fontColor($r('app.color.fs_accent'))
-        }.width('100%')
-        Text(resource.title).fontSize(18).fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.fs_text')).width('100%').textAlign(TextAlign.Start)
-        Text(resource.description).fontSize(14).lineHeight(21).maxLines(3)
-          .textOverflow({ overflow: TextOverflow.Ellipsis }).fontColor($r('app.color.fs_muted'))
-          .width('100%').textAlign(TextAlign.Start)
-        Text(resource.kind).fontSize(12).fontColor($r('app.color.fs_muted'))
-          .width('100%').textAlign(TextAlign.Start)
-      }.alignItems(HorizontalAlign.Start).padding(18).width('100%')
-    }.width('100%').height('auto').constraintSize({ minHeight: 44 })
-      .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-      .border({ width: 1, color: $r('app.color.fs_border') })
+      Row({ space: 12 }) {
+        Row() { appSymbol($r('sys.symbol.book'), 23, $r('app.color.fs_muted')) }
+          .width(28).height(44).justifyContent(FlexAlign.Center)
+        Column({ space: 5 }) {
+          Text(resource.title).fontSize(16).fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.fs_text')).width('100%').textAlign(TextAlign.Start)
+            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(resource.description).fontSize(13).lineHeight(20).maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis }).fontColor($r('app.color.fs_muted'))
+            .width('100%').textAlign(TextAlign.Start)
+          Text(resource.category + ' · ' + resource.language).fontSize(11)
+            .fontColor($r('app.color.fs_muted')).width('100%').textAlign(TextAlign.Start)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+        appSymbol($r('sys.symbol.chevron_right'), 13, $r('app.color.fs_muted'))
+      }.width('100%').padding({ left: 15, right: 15, top: 16, bottom: 16 })
+        .alignItems(VerticalAlign.Center)
+    }.width('100%').height('auto').constraintSize({ minHeight: 44 }).padding(0)
+      .backgroundColor($r('app.color.fs_surface')).borderRadius(0)
       .accessibilityText(resource.title + '，' + resource.kind + '，查看详情')
       .onClick(() => { this.openDetails(resource); })
   }
 
   @Builder
   catalogue() {
-    Column({ space: 16 }) {
-      Column({ space: 7 }) {
-        Text('03 / LIBRARY').fontSize(12).letterSpacing(2).fontColor($r('app.color.fs_accent'))
-        Text('给知识，找个起点。').fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
-        Text('开放资料精选 · ' + OPEN_RESOURCES.length + ' 项工科资源')
-          .fontSize(14).fontColor($r('app.color.fs_muted'))
-      }.alignItems(HorizontalAlign.Start).width('100%')
+    Column({ space: 12 }) {
+      Column({ space: 6 }) {
+        Text('资料库').fontSize(34).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
+        Text('工科开放资料与开源项目').fontSize(14).fontColor($r('app.color.fs_muted'))
+      }.alignItems(HorizontalAlign.Start).width('100%').padding({ bottom: 7 })
       Search({ value: this.query, placeholder: '搜索主题、来源或许可' })
-        .height(48).fontColor($r('app.color.fs_text')).backgroundColor($r('app.color.fs_surface'))
-        .border({ width: 1, color: $r('app.color.fs_border') }).borderRadius(12)
+        .height(48).textFont({ size: 16 }).placeholderFont({ size: 16 }).fontColor($r('app.color.fs_text'))
+        .backgroundColor($r('app.color.fs_surface')).borderRadius(13)
         .accessibilityText('搜索资料，支持标题、主题、来源和许可')
         .onChange((value: string) => { this.query = value; this.filterResources(); })
       Scroll() {
-        Row({ space: 8 }) {
+        Row({ space: 3 }) {
           ForEach(RESOURCE_CATEGORIES, (category: string) => {
-            Button(category, { type: ButtonType.Normal }).height(44).padding({ left: 15, right: 15 })
-              .fontSize(14).borderRadius(22)
-              .backgroundColor(this.category === category ? $r('app.color.fs_accent') : $r('app.color.fs_surface'))
-              .fontColor(this.category === category ? Color.White : $r('app.color.fs_text'))
+            Button(category, { type: ButtonType.Normal }).height(44).padding({ left: 14, right: 14 })
+              .fontSize(13).fontWeight(this.category === category ? FontWeight.Medium : FontWeight.Normal)
+              .borderRadius(10)
+              .backgroundColor(this.category === category ? $r('app.color.fs_surface') : Color.Transparent)
+              .fontColor(this.category === category ? $r('app.color.fs_text') : $r('app.color.fs_muted'))
               .accessibilityText(category + (this.category === category ? '，已选中' : '，筛选分类'))
               .onClick(() => { this.category = category; this.filterResources(); })
           }, (category: string) => category)
-        }
+        }.padding(4)
       }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
+        .backgroundColor($r('app.color.fs_group')).borderRadius(14)
       Row() {
-        Text(this.category + ' · ' + this.resultCount + ' 项').fontSize(14).fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.fs_text')).layoutWeight(1)
+        Text(this.resultCount + ' 项资料').fontSize(13).fontColor($r('app.color.fs_muted')).layoutWeight(1)
         if (this.query.length > 0 || this.category !== '全部') {
-          Button('重置筛选', { type: ButtonType.Normal }).height(44).fontSize(13)
-            .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(10)
+          Button('重置', { type: ButtonType.Normal }).height(44).fontSize(13).padding({ left: 12, right: 0 })
+            .backgroundColor(Color.Transparent).fontColor($r('app.color.fs_accent'))
             .onClick(() => { this.query = ''; this.category = '全部'; this.filterResources(); })
         }
-      }.width('100%').constraintSize({ minHeight: 44 })
+      }.width('100%').height(44)
       if (this.resultCount === 0) {
         Column({ space: 12 }) {
-          Text('暂时没有匹配的资料').fontSize(18).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-          Text('试试“算法”“Python”或“MIT”，也可以重置分类与搜索。')
-            .fontSize(14).lineHeight(22).fontColor($r('app.color.fs_muted')).textAlign(TextAlign.Center)
+          appSymbol($r('sys.symbol.book'), 30, $r('app.color.fs_muted'))
+          Text('没有匹配的资料').fontSize(18).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+          Text('试试其他关键词，或重置筛选。').fontSize(14)
+            .fontColor($r('app.color.fs_muted')).textAlign(TextAlign.Center)
         }.padding(24).width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else {
-        List({ space: 12, scroller: this.listScroller }) {
-          ListItem() {
-            Text('免费阅读 ≠ 开源。详情中分别说明内容与代码许可；生成导图只使用主题。')
-              .fontSize(13).lineHeight(20).fontColor($r('app.color.fs_muted')).padding({ bottom: 4 })
-          }
+        List({ space: 0, scroller: this.listScroller }) {
           LazyForEach(this.dataSource, (resource: LearningResource) => {
-            ListItem() { this.resourceCard(resource) }
+            ListItem() { this.resourceRow(resource) }
           }, (resource: LearningResource) => resource.id)
-          ListItem() {
-            Text('官方来源核验于 2026-11-03 · 再利用前请核对最新条款')
-              .fontSize(12).lineHeight(18).fontColor($r('app.color.fs_muted')).padding({ top: 6, bottom: 16 })
-          }
         }.width('100%').layoutWeight(1).cachedCount(4).scrollBar(BarState.Auto)
+          .backgroundColor($r('app.color.fs_surface')).borderRadius(18).clip(true)
+          .divider({ strokeWidth: 0.5, color: $r('app.color.fs_border'), startMargin: 55, endMargin: 15 })
       }
-    }.padding({ left: 20, right: 20, top: 20 }).width('100%').height('100%')
+      Text('公开阅读不等于开源。详情中可查看来源与许可。')
+        .fontSize(11).lineHeight(17).fontColor($r('app.color.fs_muted')).width('100%')
+        .padding({ top: 2, bottom: 14 })
+    }.padding({ left: 20, right: 20, top: 16 }).width('100%').height('100%')
       .alignItems(HorizontalAlign.Start)
   }
 
   @Builder
   detail() {
     Column({ space: 12 }) {
-      Row({ space: 12 }) {
-        Button('‹ 返回', { type: ButtonType.Normal }).height(44).fontSize(15)
-          .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(10)
+      Row() {
+        Text('资料详情').fontSize(18).fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.fs_text')).layoutWeight(1)
+        Button('完成', { type: ButtonType.Normal }).height(44).constraintSize({ minWidth: 44 })
+          .fontSize(15).fontColor($r('app.color.fs_accent')).backgroundColor(Color.Transparent)
           .onClick(() => { this.showingDetails = false; })
-        Text('资料详情').fontSize(18).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
       }.width('100%')
       Scroll() {
-        Column({ space: 20 }) {
-          Text(this.selectedResource.category + ' / ' + this.selectedResource.language)
-            .fontSize(13).fontColor($r('app.color.fs_accent')).width('100%')
-          Text(this.selectedResource.title).fontSize(28).fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.fs_text')).width('100%')
-          Text(this.selectedResource.kind).fontSize(14).fontColor($r('app.color.fs_muted')).width('100%')
-          Text(this.selectedResource.description).fontSize(16).lineHeight(26)
-            .fontColor($r('app.color.fs_text')).width('100%')
-          Column({ space: 10 }) {
-            Text('来源与访问').fontSize(17).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Text(this.selectedResource.source).fontSize(14).lineHeight(22).fontColor($r('app.color.fs_text'))
-            Text(this.selectedResource.url).fontSize(13).lineHeight(20).wordBreak(WordBreak.BREAK_ALL)
-              .fontColor($r('app.color.fs_accent')).copyOption(CopyOptions.LocalDevice)
-            Button('访问官方原站 ↗', { type: ButtonType.Normal }).width('100%')
-              .constraintSize({ minHeight: 48 }).fontSize(15).borderRadius(10)
-              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
-              .onClick(() => { this.onOpenResource(this.selectedResource); })
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(18)
-            .backgroundColor($r('app.color.fs_surface')).borderRadius(14)
-          Column({ space: 10 }) {
-            Text('内容与代码许可').fontSize(17).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Text(this.selectedResource.license).fontSize(14).lineHeight(23).fontColor($r('app.color.fs_text'))
-            Text('链接可公开访问不代表可以自由再分发。NC 表示非商业，SA 表示相同方式共享。')
-              .fontSize(13).lineHeight(21).fontColor($r('app.color.fs_muted'))
-            Button('查看官方许可依据 ↗', { type: ButtonType.Normal }).width('100%')
-              .constraintSize({ minHeight: 48 }).fontSize(15).borderRadius(10)
-              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
-              .onClick(() => { this.openLicense(); })
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(18)
-            .backgroundColor($r('app.color.fs_surface')).borderRadius(14)
-          Column({ space: 12 }) {
-            Text('把主题变成学习路线').fontSize(18).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            Text('仅根据标题与简介生成通用知识导图。应用没有抓取或读取原站全文，生成内容请对照官方资料核实。')
-              .fontSize(14).lineHeight(23).fontColor($r('app.color.fs_muted'))
-            Button('基于此主题生成导图', { type: ButtonType.Normal }).width('100%')
-              .constraintSize({ minHeight: 50 }).fontSize(16).fontWeight(FontWeight.Medium).borderRadius(12)
-              .backgroundColor($r('app.color.fs_accent')).fontColor(Color.White)
-              .onClick(() => { this.useTopic(); })
+        Column({ space: 18 }) {
+          Column({ space: 8 }) {
+            Text(this.selectedResource.category + ' · ' + this.selectedResource.language)
+              .fontSize(12).fontColor($r('app.color.fs_muted')).width('100%')
+            Text(this.selectedResource.title).fontSize(25).fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.fs_text')).width('100%')
+            Text(this.selectedResource.kind).fontSize(13).fontColor($r('app.color.fs_muted')).width('100%')
+            Text(this.selectedResource.description).fontSize(15).lineHeight(24)
+              .fontColor($r('app.color.fs_text')).width('100%')
           }.width('100%').alignItems(HorizontalAlign.Start)
-          Text('来源核验：2026-11-03').fontSize(12).fontColor($r('app.color.fs_muted')).width('100%')
-        }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 12, bottom: 28 })
+          Column({ space: 10 }) {
+            Text('来源').fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+            Text(this.selectedResource.source).fontSize(14).lineHeight(22).fontColor($r('app.color.fs_text'))
+            Text(this.selectedResource.url).fontSize(12).lineHeight(19).wordBreak(WordBreak.BREAK_ALL)
+              .fontColor($r('app.color.fs_accent')).copyOption(CopyOptions.LocalDevice)
+            Button('打开原站', { type: ButtonType.Normal }).width('100%').height(46).fontSize(14)
+              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(11)
+              .onClick(() => { this.onOpenResource(this.selectedResource); })
+          }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
+            .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
+          Column({ space: 10 }) {
+            Text('内容与代码许可').fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+            Text(this.selectedResource.license).fontSize(14).lineHeight(23)
+              .fontColor($r('app.color.fs_text')).copyOption(CopyOptions.LocalDevice).width('100%')
+            Text('以原站条款为准；非商业、署名与共享要求分别适用。')
+              .fontSize(12).lineHeight(19).fontColor($r('app.color.fs_muted'))
+            Button('查看许可依据', { type: ButtonType.Normal }).width('100%').height(46).fontSize(14)
+              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(11)
+              .onClick(() => { this.openLicense(); })
+          }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
+            .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
+        }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 3, bottom: 16 })
       }.width('100%').layoutWeight(1).scrollBar(BarState.Auto)
-    }.width('100%').height('100%').padding({ left: 20, right: 20, top: 16 })
+      Button('用作导图主题', { type: ButtonType.Normal }).width('100%').height(50)
+        .fontSize(16).fontWeight(FontWeight.Medium).borderRadius(13)
+        .backgroundColor($r('app.color.fs_accent')).fontColor($r('app.color.fs_on_accent'))
+        .enabled(this.pendingTopic.length === 0).onClick(() => { this.useTopic(); })
+      Text('仅使用标题与简介，不会读取原站全文。').fontSize(11)
+        .fontColor($r('app.color.fs_muted')).width('100%').textAlign(TextAlign.Center)
+    }.width('100%').height('100%').padding({ left: 20, right: 20, top: 12, bottom: 20 })
+      .backgroundColor($r('app.color.fs_bg'))
   }
 
   build() {
-    Column() {
-      if (this.showingDetails) { this.detail() } else { this.catalogue() }
-    }.width('100%').height('100%').backgroundColor($r('app.color.fs_bg'))
+    Column() { this.catalogue() }
+      .width('100%').height('100%').backgroundColor($r('app.color.fs_bg'))
+      .bindSheet(this.showingDetails, this.detail(), {
+        height: SheetSize.LARGE, showClose: false, backgroundColor: $r('app.color.fs_bg'),
+        onDisappear: () => { this.detailClosed(); }
+      })
   }
 }

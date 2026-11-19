@@ -39,7 +39,7 @@ function repository(seed) {
   return repo;
 }
 
-async function appHarness({ seed, generate, imported } = {}) {
+async function appHarness({ seed, generate, imported, example } = {}) {
   const oldDoc = createDocument('已有导图');
   oldDoc.documentId = 'original-document'; oldDoc.nodes[0].text = '已有重要知识';
   const otherDoc = createDocument('另一份导图'); otherDoc.documentId = 'other-document';
@@ -54,7 +54,7 @@ async function appHarness({ seed, generate, imported } = {}) {
       return candidateFor(request);
     }, cancel() {}
   };
-  const exports = { async importDocument() { if (!imported) throw new Error('模拟用户取消导入'); return cloneDocument(imported); }, async exportDocument() {} };
+  const exports = { exampleId: 'flowspace-example-signals', loadExample() { if (!example) throw new Error('示例未能载入'); return example(); }, async importDocument() { if (!imported) throw new Error('模拟用户取消导入'); return cloneDocument(imported); }, async exportDocument() {} };
   globalThis.__workflowDependencies = { repo, client, exports };
   const nativeHeader = `
 import {createDocument,defaultSettings,cloneDocument,newId} from '${mindMapModule}';
@@ -87,6 +87,51 @@ function edit(app, text) {
   app.action({ kind: 'edit', nodeId: app.document.rootId, parentId: '', text, note: '' });
 }
 test.after(() => { delete globalThis.__workflowDependencies; });
+
+test('opening the bundled sample persists the copy, enters DIY and never contacts a model', async () => {
+  const sample = createDocument('信号与系统');
+  sample.documentId = 'flowspace-example-signals';
+  const { app, repo, calls } = await appHarness({ example: () => sample });
+  await app.importDocument(true);
+  assert.equal(app.currentTab, 1);
+  assert.equal(app.saveStatus, '已保存');
+  assert.equal(app.document.documentId, sample.documentId);
+  assert.equal(repo.docs.get(sample.documentId).title, sample.title);
+  edit(app, '编辑后再次打开');
+  await app.importDocument(true);
+  assert.equal(repo.docs.size, 3);
+  assert.equal(app.document.nodes[0].text, '编辑后再次打开');
+  assert.equal(calls.length, 0);
+});
+
+test('example load failure preserves the active document and leaves the error visible', async () => {
+  const { app, oldDoc, repo } = await appHarness();
+  await app.importDocument(true);
+  assert.equal(app.document.documentId, oldDoc.documentId);
+  assert.equal(repo.docs.size, 2);
+  assert.match(app.message, /示例/);
+  assert.equal(app.changingDocument, false);
+});
+
+test('unconfirmed candidates survive any attempt to replace the active map', async () => {
+  const { app, repo, otherDoc, oldDoc, calls } = await appHarness();
+  await app.generate('先补一条');
+  const original = app.candidate;
+  assert.ok(original);
+  for (const operation of [
+    () => app.openDocument(otherDoc.documentId), () => app.importDocument(true), () => app.importDocument(),
+    () => app.newMap(), () => app.deleteDocument(oldDoc.documentId), () => app.generate('另一个主题', true)
+  ]) {
+    app.currentTab = 0;
+    await operation();
+    assert.equal(app.candidate, original);
+    assert.equal(app.document.documentId, oldDoc.documentId);
+    assert.equal(app.currentTab, 1);
+    assert.match(app.message, /应用或放弃/);
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(repo.docs.size, 2);
+});
 
 test('save failure blocks switching without losing edits; successful retry flushes the old document', async () => {
   const { app, repo, otherDoc, oldDoc } = await appHarness();

@@ -11,6 +11,7 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const stage=mkdtempSync(join(tmpdir(),'flowspace-canvas-test-'));
 for(const [source,target] of [['domain/MindMap','MindMap'],['canvas/MapLayout','MapLayout'],['canvas/MindMapCanvas','MindMapCanvas']]) {
   let text=readFileSync(join(root,'entry/src/main/ets',source+'.ets'),'utf8');
+  text=text.replace(/^import .* from '@(?:kit|ohos)[^']+';\r?\n/gm,'');
   if(target==='MindMapCanvas') {
     // Remove only declarative ArkUI syntax. Keep all actual fit, pan/zoom,
     // selection, document refresh and painting method implementations.
@@ -29,12 +30,13 @@ for(const [source,target] of [['domain/MindMap','MindMap'],['canvas/MapLayout','
 // ready remains false, so paint() exits before invoking native drawing APIs.
 globalThis.RenderingContextSettings=class {};
 globalThis.CanvasRenderingContext2D=class {};
+globalThis.ConfigurationConstant={ColorMode:{COLOR_MODE_DARK:0,COLOR_MODE_LIGHT:1}};
 const {createDocument}=await import(pathToFileURL(join(stage,'MindMap.mjs')));
 const {layoutMap,nodeLines}=await import(pathToFileURL(join(stage,'MapLayout.mjs')));
 const {MindMapCanvas}=await import(pathToFileURL(join(stage,'MindMapCanvas.mjs')));
 test.after(()=>{
   rmSync(stage,{recursive:true,force:true});
-  delete globalThis.RenderingContextSettings; delete globalThis.CanvasRenderingContext2D;
+  delete globalThis.RenderingContextSettings; delete globalThis.CanvasRenderingContext2D; delete globalThis.ConfigurationConstant;
 });
 
 function document(count,layout='right',shape='balanced',long=false) {
@@ -58,7 +60,7 @@ function assertNoOverlap(scene) {
   }
 }
 function controller(doc,width=390,height=440) {
-  const c=new MindMapCanvas(); c.document=doc; c.scene=layoutMap(doc);
+  const c=new MindMapCanvas(); c.document=doc; c.rebuildScene();
   c.viewportWidth=width; c.viewportHeight=height;
   c.fit(); return c;
 }
@@ -155,4 +157,139 @@ test('document refresh retains viewport for same document and fits when switchin
 
 test('maximum legal 500-node long-label star fits completely in compact phone viewport',()=>{
   for(const orientation of ['right','down']) assertFits(controller(document(500,orientation,'star',true),320,280));
+});
+
+test('viewport repeats retain 50% zoom and resize keeps world-space center without auto-fit',()=>{
+  const c=controller(document(200)); c.ready=true; c.paint=()=>{};
+  c.setZoom(0.5); c.panX+=31; c.panY-=45;
+  const before={x:c.panX,y:c.panY,zoom:c.zoom};
+  c.updateViewport(c.viewportWidth,c.viewportHeight);
+  assert.deepEqual({x:c.panX,y:c.panY,zoom:c.zoom},before);
+  const x=(c.viewportWidth/2-c.panX)/c.zoom,y=(c.viewportHeight/2-c.panY)/c.zoom;
+  c.updateViewport(480,320);
+  assert.equal(c.zoom,0.5);
+  assert.equal((c.viewportWidth/2-c.panX)/c.zoom,x);
+  assert.equal((c.viewportHeight/2-c.panY)/c.zoom,y);
+  const actual={w:c.viewportWidth,h:c.viewportHeight,x:c.panX,y:c.panY};
+  c.updateViewport(0,0); c.updateViewport(NaN,480);
+  assert.deepEqual({w:c.viewportWidth,h:c.viewportHeight,x:c.panX,y:c.panY},actual);
+});
+
+test('first usable viewport fits once and explicit fit still restores complete scene',()=>{
+  const c=new MindMapCanvas(); c.document=document(500,'down'); c.rebuildScene(); c.paint=()=>{};
+  c.updateViewport(320,360); assert.equal(c.needsFit,true);
+  c.ready=true; c.updateViewport(320,361); assert.equal(c.needsFit,false); assertFits(c);
+  c.setZoom(0.5); c.panX=-200; c.requestFit(); assertFits(c);
+});
+
+test('candidate preview with stable document ID retains 50% transform and rebuilds index',()=>{
+  const c=controller(document(200)); c.currentDocumentId=c.document.documentId; c.setZoom(0.5);
+  c.panX+=71; c.panY-=19; const transform={x:c.panX,y:c.panY,z:c.zoom},previous=c.nodeIndex;
+  const candidate=structuredClone(c.document); candidate.nodes[1].text='候选修改';
+  candidate.nodes.push({id:'new_candidate',parentId:candidate.rootId,order:500,text:'候选节点',note:'',collapsed:false});
+  c.document=candidate; c.refreshDocument();
+  assert.deepEqual({x:c.panX,y:c.panY,z:c.zoom},transform);
+  assert.notEqual(c.nodeIndex,previous); assert.equal(c.nodeIndex.size,201); assert.ok(c.nodeIndex.has('new_candidate'));
+});
+
+test('cancelled pan and pinch restore the exact captured transform',()=>{
+  const c=controller(document(200));
+  const start={x:c.panX,y:c.panY,z:c.zoom};
+  c.beginPan(); c.updatePan(121,-47); assert.notEqual(c.panX,start.x); c.cancelPan();
+  assert.deepEqual({x:c.panX,y:c.panY,z:c.zoom},start);
+  c.beginPinch(); c.setZoom(c.zoom*1.8); c.cancelPinch();
+  assert.deepEqual({x:c.panX,y:c.panY,z:c.zoom},start);
+});
+
+function recordingContext() {
+  return {
+    calls:[],fillStyle:'',strokeStyle:'',lineWidth:1,font:'',textBaseline:'',
+    clearRect(){this.calls.push({kind:'clear'});},save(){},restore(){},translate(){},scale(){},
+    fillRect(){this.calls.push({kind:'dot',color:this.fillStyle});},beginPath(){},moveTo(){},bezierCurveTo(){},
+    stroke(){this.calls.push({kind:'stroke',color:this.strokeStyle,width:this.lineWidth});},roundRect(){},arc(){},
+    fill(){this.calls.push({kind:'fill',color:this.fillStyle});},
+    fillText(text){this.calls.push({kind:'text',text,color:this.fillStyle});}
+  };
+}
+const paletteFiles={
+  light:JSON.parse(readFileSync(join(root,'entry/src/main/resources/base/element/color.json'),'utf8')).color,
+  dark:JSON.parse(readFileSync(join(root,'entry/src/main/resources/dark/element/color.json'),'utf8')).color
+};
+function attachHost(c) {
+  const state={mode:'light',reads:0,subscribed:null,unsubscribed:[],next:7};
+  const app={on(type,callback){assert.equal(type,'environment');state.subscribed=callback;return state.next;},
+    async off(type,id){assert.equal(type,'environment');state.unsubscribed.push(id);}};
+  c.getUIContext=()=>({getHostContext:()=>({getApplicationContext:()=>app,
+    resourceManager:{getColorSync(resource){
+      state.reads++;
+      const color=paletteFiles[state.mode].find(item=>resource==='app.color.'+item.name);
+      assert.ok(color,'unknown semantic canvas color '+resource);
+      return Number.parseInt(color.value.slice(1),16);
+    }}})});
+  return state;
+}
+
+test('500-node painting uses cached parent index and palette, including selected semantic colors',()=>{
+  globalThis.$r=resource=>resource;
+  try {
+    const c=controller(document(500)); c.ready=true; c.context=recordingContext(); const host=attachHost(c);
+    const index=c.nodeIndex; let gets=0; const get=index.get.bind(index); index.get=id=>{gets++;return get(id);};
+    c.scene.nodes.find=()=>{throw Error('paint must not perform per-node linear parent lookup');};
+    c.selectedNodeId='n1'; c.paint(); assert.equal(gets,500); assert.equal(host.reads,8);
+    assert.ok(c.context.calls.some(call=>call.kind==='fill'&&call.color.toUpperCase()==='#ECECFA'));
+    assert.ok(c.context.calls.some(call=>call.kind==='stroke'&&call.width===2.5));
+    const dots=c.context.calls.filter(call=>call.kind==='dot').length;
+    assert.ok(dots>0&&dots<1000,'grid work must scale with viewport rather than scene size');
+    c.beginPan(); c.updatePan(30,-20);
+    assert.equal(c.nodeIndex,index); assert.equal(gets,1000); assert.equal(host.reads,8);
+  } finally {delete globalThis.$r;}
+});
+
+test('appearance and system configuration repaint with dark on-accent contrast and unsubscribe',async()=>{
+  globalThis.$r=resource=>resource;
+  const c=controller(document(20)); c.ready=true; c.context=recordingContext(); const host=attachHost(c);
+  try {
+    c.aboutToAppear(); await new Promise(resolve=>setTimeout(resolve,10));
+    assert.ok(host.subscribed); assert.ok(c.context.calls.some(call=>call.kind==='text'&&call.color==='#ffffff'));
+    host.mode='dark'; c.appearance='dark'; c.refreshAppearance(); await new Promise(resolve=>setTimeout(resolve,10));
+    const root=c.scene.nodes[0],rootLabel=root.lines[0];
+    assert.equal(c.context.calls.filter(call=>call.kind==='text'&&call.text===rootLabel).at(-1).color,'#171630');
+    assert.ok(c.context.calls.some(call=>call.kind==='fill'&&call.color==='#b1aeff'));
+    c.appearance='system'; host.mode='light'; const reads=host.reads;
+    host.subscribed.onConfigurationUpdated({colorMode:1}); await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(host.reads,reads+8);
+    c.aboutToDisappear(); await Promise.resolve(); assert.deepEqual(host.unsubscribed,[7]);
+    assert.equal(c.environmentId,-1); assert.equal(c.paintTimer,-1);
+  } finally { c.aboutToDisappear(); delete globalThis.$r; }
+});
+
+test('the ten-node example fits a 360vp phone without fixed-width empty label gutters', () => {
+  const example = JSON.parse(readFileSync(join(root, 'entry/src/main/resources/rawfile/example-mindmap.json'), 'utf8')).document;
+  const c = controller(example, 360, 475);
+  assertFits(c);
+  assert.ok(c.zoom >= 0.78, 'Short labels should remain legible when all ten nodes fit');
+  assert.ok(c.scene.nodes.every(node => node.width < 150));
+});
+
+test('solid semantic colors stay visible when the resource backend returns zero', () => {
+  globalThis.$r = value => value;
+  const c = controller(document(1));
+  c.getUIContext = () => ({getHostContext: () => ({config:{colorMode:0},resourceManager:{getColorSync: () => 0}})});
+  try {
+    assert.equal(c.getPalette().accent.toLowerCase(), '#b1aeff');
+    assert.equal(c.getPalette().onAccent.toLowerCase(), '#171630');
+  } finally { delete globalThis.$r; }
+});
+
+test('tapping a branch disclosure toggles that node, tapping the label only selects it', () => {
+  const doc = document(5);
+  const c = controller(doc);
+  const node = c.scene.nodes[0];
+  const selected = [], toggled = [];
+  c.onSelect = id => selected.push(id);
+  c.onToggle = id => toggled.push(id);
+  c.selectAt((node.x + node.width) * c.zoom + c.panX, (node.y + node.height / 2) * c.zoom + c.panY);
+  c.selectAt((node.x + 16) * c.zoom + c.panX, (node.y + node.height / 2) * c.zoom + c.panY);
+  assert.deepEqual(selected, [doc.rootId, doc.rootId]);
+  assert.deepEqual(toggled, [doc.rootId]);
 });

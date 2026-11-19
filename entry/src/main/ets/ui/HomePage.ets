@@ -1,3 +1,4 @@
+import { appSymbol, brandMark } from './Controls';
 import { DocumentSummary, LearningResource } from '../domain/MindMap';
 import { VIDEO_RESOURCES } from '../data/VideoCatalog';
 
@@ -41,6 +42,7 @@ export struct HomePage {
   @Event onOpenDocument: (id: string) => void = (_id: string): void => {};
   @Event onNewMap: () => void = (): void => {};
   @Event onOpenResource: (resource: LearningResource) => void = (_resource: LearningResource): void => {};
+  @Event onOpenExample: () => void = () => {};
   @Local draft: string = '';
   @Local longText: boolean = false;
   @Local category: string = '全部';
@@ -69,140 +71,130 @@ export struct HomePage {
 
   @Builder
   private header() {
-    Column({ space: 18 }) {
-      Row({ space: 10 }) {
-        Text('F').fontSize(22).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_accent'))
-          .width(40).height(40).textAlign(TextAlign.Center)
-          .backgroundColor($r('app.color.fs_soft')).borderRadius(13)
-        Text('FlowSpace').fontSize(20).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
+    Column({ space: 12 }) {
+      Row({ space: 8 }) {
+        brandMark()
+        Text('FlowSpace').fontSize(19).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
         Blank()
-        Text('学习 · 有迹可循').fontSize(11).fontColor($r('app.color.fs_muted'))
+        Button({ type: ButtonType.Normal }) {
+          Row({ space: 5 }) {
+            appSymbol($r('sys.symbol.square_and_pencil'), 16, $r('app.color.fs_accent'))
+            Text('手动创建').fontSize(14).fontColor($r('app.color.fs_accent'))
+          }
+        }.height(44).padding({ left: 8, right: 2 }).backgroundColor(Color.Transparent)
+          .enabled(!this.busy).onClick(() => this.onNewMap()).id('home-new')
       }.width('100%')
-      Column({ space: 8 }) {
-        Text('让想法，\n慢慢清晰起来。').fontSize(32).fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.fs_text')).lineHeight(43).width('100%')
-        Text('从一句话、一段笔记，开始你的知识地图。').fontSize(14)
-          .fontColor($r('app.color.fs_muted')).lineHeight(22).width('100%')
-      }.alignItems(HorizontalAlign.Start).width('100%')
-    }.alignItems(HorizontalAlign.Start).width('100%').padding({ top: 12, bottom: 8 })
+      Text('新建思维导图').fontSize(33).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
+    }.alignItems(HorizontalAlign.Start).width('100%').padding({ top: 12 })
+  }
+
+  @Builder
+  private inputMode(label: string, longText: boolean) {
+    Button(label, { type: ButtonType.Normal }).height(44).layoutWeight(1).borderRadius(10)
+      .fontSize(15).fontWeight(this.longText === longText ? FontWeight.Medium : FontWeight.Regular)
+      .backgroundColor(this.longText === longText ? $r('app.color.fs_surface') : Color.Transparent)
+      .fontColor(this.longText === longText ? $r('app.color.fs_text') : $r('app.color.fs_muted'))
+      .accessibilityText(label + (this.longText === longText ? '，已选中' : ''))
+      .enabled(!this.busy).onClick(() => { this.longText = longText; })
   }
 
   @Builder
   private composer() {
     Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        Button('描述想法', { type: ButtonType.Normal })
-          .fontSize(14).fontColor(this.longText ? $r('app.color.fs_muted') : $r('app.color.fs_accent'))
-          .backgroundColor(this.longText ? $r('app.color.fs_surface') : $r('app.color.fs_soft'))
-          .height(44).borderRadius(12).layoutWeight(1)
-          .enabled(!this.busy).onClick(() => { this.longText = false; })
-        Button('粘贴长文', { type: ButtonType.Normal })
-          .fontSize(14).fontColor(this.longText ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
-          .backgroundColor(this.longText ? $r('app.color.fs_soft') : $r('app.color.fs_surface'))
-          .height(44).borderRadius(12).layoutWeight(1)
-          .enabled(!this.busy).onClick(() => { this.longText = true; })
-      }.width('100%')
-      TextArea({ text: this.draft, placeholder: this.longText ?
-        '粘贴课堂笔记、课程摘要或文章，AI 将帮你提炼层级与要点…' :
-        '例如：整理电路分析的知识框架，包含基本定律、分析方法与典型电路…' })
-        .fontSize(16).fontColor($r('app.color.fs_text')).placeholderColor($r('app.color.fs_muted'))
-        .backgroundColor($r('app.color.fs_bg')).borderRadius(14)
-        .height(this.longText ? 220 : 156).width('100%').padding(14)
-        .enabled(!this.busy)
+      Row({ space: 3 }) {
+        this.inputMode('主题', false)
+        this.inputMode('长文', true)
+      }.width('100%').padding(3).borderRadius(13).backgroundColor($r('app.color.fs_group'))
+      TextArea({ text: this.draft, placeholder: this.longText ? '粘贴课堂笔记、文章或会议记录…' : '想整理什么？例如，信号与系统的复习提纲。' })
+        .width('100%').height(this.longText ? 170 : 98).padding({ top: 12, left: 6, right: 6, bottom: 6 })
+        .fontSize(17).fontColor($r('app.color.fs_text')).placeholderColor($r('app.color.fs_muted'))
+        .backgroundColor($r('app.color.fs_surface')).enabled(!this.busy)
+        .accessibilityText('输入主题或长文，最多两万字').id('home-input')
         .onChange((value: string) => { this.draft = value; })
-        .accessibilityText('输入思维导图主题或长文，最多两万字')
-      Row() {
-        Text(this.draft.length.toString() + ' / 20,000 字').fontSize(12)
-          .fontColor($r('app.color.fs_muted'))
-        Blank()
-        Button('清空', { type: ButtonType.Normal }).height(44).fontSize(13)
-          .fontColor($r('app.color.fs_muted')).backgroundColor($r('app.color.fs_surface'))
-          .enabled(!this.busy && this.draft.length > 0).onClick(() => { this.draft = ''; })
-      }.width('100%')
-      if (this.draft.length > 20000) {
-        Text('输入超过20,000字，请缩短后再生成；原文已保留。').fontSize(13).fontColor($r('app.color.fs_danger'))
+      if (this.draft.length > 0) {
+        Row() {
+          Text(this.draft.length + ' / 20,000').fontSize(13)
+            .fontColor(this.draft.length > 20000 ? $r('app.color.fs_danger') : $r('app.color.fs_muted'))
+          Blank()
+          Button('清空', { type: ButtonType.Normal }).height(44).fontSize(14).backgroundColor(Color.Transparent)
+            .fontColor($r('app.color.fs_muted')).enabled(!this.busy).onClick(() => { this.draft = ''; })
+        }.width('100%')
       }
-      Button(this.busy ? '正在整理思路…' : '生成思维导图  ↗', { type: ButtonType.Normal })
-        .width('100%').constraintSize({ minHeight: 50 }).padding(14).borderRadius(14)
-        .fontSize(16).fontWeight(FontWeight.Medium).fontColor(Color.White)
-        .backgroundColor($r('app.color.fs_accent'))
-        .enabled(!this.busy && this.draft.trim().length > 0 && this.draft.length <= 20000)
-        .onClick(() => { this.generate(); })
-      Text('AI 将提取结构与要点，生成后仍可对话修改或手动编辑。')
-        .fontSize(12).fontColor($r('app.color.fs_muted')).lineHeight(18).width('100%')
-    }.width('100%').padding(16).borderRadius(22).backgroundColor($r('app.color.fs_surface'))
-    .border({ width: 1, color: $r('app.color.fs_border') })
+      if (this.draft.length > 20000) {
+        Text('请将输入缩短至20,000字以内。').fontSize(14).fontColor($r('app.color.fs_danger')).width('100%')
+      }
+      Button({ type: ButtonType.Normal }) {
+        Row({ space: 8 }) {
+          appSymbol($r('sys.symbol.wand_and_stars'), 18, $r('app.color.fs_on_accent'))
+          Text(this.busy ? '生成中…' : '生成导图').fontColor($r('app.color.fs_on_accent')).fontSize(17).fontWeight(FontWeight.Medium)
+        }
+      }.width('100%').constraintSize({ minHeight: 50 }).borderRadius(14).padding(12)
+        .backgroundColor($r('app.color.fs_accent')).accessibilityText('生成思维导图').id('home-generate')
+        .enabled(!this.busy && this.draft.trim().length > 0 && this.draft.length <= 20000).onClick(() => this.generate())
+    }.width('100%').padding(16).borderRadius(20).backgroundColor($r('app.color.fs_surface'))
   }
 
   @Builder
   private examples() {
-    Column({ space: 10 }) {
-      Text('试试这些灵感').fontSize(13).fontColor($r('app.color.fs_muted'))
+    Column({ space: 6 }) {
+      Text('示例主题').fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_muted'))
       Row({ space: 8 }) {
         ForEach(HOME_EXAMPLES, (example: HomeExample) => {
-          Button(example.title, { type: ButtonType.Normal }).layoutWeight(1)
-            .constraintSize({ minHeight: 44 }).fontSize(13).borderRadius(12)
-            .fontColor($r('app.color.fs_accent')).backgroundColor($r('app.color.fs_soft'))
+          Button(example.title, { type: ButtonType.Normal }).layoutWeight(1).constraintSize({ minHeight: 44 })
+            .fontSize(14).borderRadius(13).fontColor($r('app.color.fs_accent')).backgroundColor($r('app.color.fs_soft'))
             .enabled(!this.busy).onClick(() => { this.draft = example.instruction; this.longText = false; })
         }, (example: HomeExample) => example.title)
       }.width('100%')
-    }.alignItems(HorizontalAlign.Start).width('100%')
+    }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
   @Builder
   private recent() {
-    Column({ space: 10 }) {
+    Column({ space: 8 }) {
       Row() {
-        Text('继续上次的思考').fontSize(20).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
-        Blank()
-        Button('＋ 新建', { type: ButtonType.Normal }).height(44).fontSize(13).borderRadius(12)
-          .fontColor($r('app.color.fs_accent')).backgroundColor($r('app.color.fs_soft'))
-          .enabled(!this.busy).onClick(() => { this.onNewMap(); })
+        Text('最近导图').fontSize(23).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text')).layoutWeight(1)
+        Button('打开示例', { type: ButtonType.Normal }).height(44).padding({ left: 12, right: 2 })
+          .fontSize(15).fontColor($r('app.color.fs_accent')).backgroundColor(Color.Transparent)
+          .enabled(!this.busy).accessibilityText('打开可编辑的本地示例导图').id('home-example').onClick(() => this.onOpenExample())
       }.width('100%')
-      if (this.documents.length === 0) {
-        Column({ space: 6 }) {
-          Text('第一张知识地图，从这里开始').fontSize(15).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.fs_text')).width('100%')
-          Text('生成一张导图，或点“新建”亲手搭建。保存后会出现在这里。')
-            .fontSize(13).lineHeight(20).fontColor($r('app.color.fs_muted')).width('100%')
-        }.padding(16).width('100%').backgroundColor($r('app.color.fs_surface')).borderRadius(16)
-      } else {
-        ForEach(this.recentDocuments(), (doc: DocumentSummary) => {
-          Button({ type: ButtonType.Normal }) {
-            Row({ space: 12 }) {
-              Text('◇').fontSize(25).fontColor($r('app.color.fs_accent'))
-                .width(42).height(42).textAlign(TextAlign.Center)
-                .backgroundColor($r('app.color.fs_soft')).borderRadius(12)
-              Column({ space: 5 }) {
-                Text(doc.title).fontSize(15).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.fs_text')).maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .width('100%')
-                Text(doc.nodeCount.toString() + ' 个节点 · ' + this.dateLabel(doc.updatedAt))
-                  .fontSize(12).fontColor($r('app.color.fs_muted')).width('100%')
-              }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-              Text('›').fontSize(24).fontColor($r('app.color.fs_muted'))
-            }.width('100%')
-          }.width('100%').padding(14).borderRadius(16).backgroundColor($r('app.color.fs_surface'))
-          .enabled(!this.busy).onClick(() => { this.onOpenDocument(doc.documentId); })
-        }, (doc: DocumentSummary) => doc.documentId + ':' + doc.updatedAt)
-      }
+      Column() {
+        if (this.documents.length === 0) {
+          Text('暂无最近导图。打开示例即可试用编辑、撤销和导出。')
+            .fontSize(15).lineHeight(23).fontColor($r('app.color.fs_muted')).width('100%').padding(16)
+        } else {
+          ForEach(this.recentDocuments(), (doc: DocumentSummary, index: number) => {
+            if (index > 0) { Divider().color($r('app.color.fs_border')).margin({ left: 64 }) }
+            Button({ type: ButtonType.Normal }) {
+              Row({ space: 12 }) {
+                Stack() { appSymbol($r('sys.symbol.rectangle_3_group'), 20, $r('app.color.fs_accent')) }
+                  .width(38).height(38).borderRadius(11).backgroundColor($r('app.color.fs_soft'))
+                Column({ space: 4 }) {
+                  Text(doc.title).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+                    .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+                  Text(doc.nodeCount + ' 个节点 · ' + this.dateLabel(doc.updatedAt)).fontSize(13).fontColor($r('app.color.fs_muted'))
+                }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+                appSymbol($r('sys.symbol.chevron_right'), 14, $r('app.color.fs_muted'))
+              }.width('100%')
+            }.width('100%').height('auto').padding(14).backgroundColor(Color.Transparent)
+              .enabled(!this.busy).onClick(() => this.onOpenDocument(doc.documentId))
+          }, (doc: DocumentSummary) => doc.documentId + ':' + doc.updatedAt)
+        }
+      }.width('100%').borderRadius(16).clip(true).backgroundColor($r('app.color.fs_surface'))
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
   @Builder
   private videoHeader() {
-    Column({ space: 10 }) {
+    Column({ space: 8 }) {
       Row() {
-        Text('给知识一点新连接').fontSize(20).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
-        Blank()
-        Text('8 门视频课程').fontSize(12).fontColor($r('app.color.fs_muted'))
+        Text('工科视频').fontSize(23).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text')).layoutWeight(1)
+        Text(VIDEO_RESOURCES.length + ' 门课程').fontSize(14).fontColor($r('app.color.fs_muted'))
       }.width('100%')
-      Text('工科学习精选 · 官方课程入口').fontSize(13).fontColor($r('app.color.fs_muted'))
       Scroll() {
-        Row({ space: 8 }) {
+        Row({ space: 6 }) {
           ForEach(this.categories, (item: string) => {
-            Button(item, { type: ButtonType.Normal }).height(44).fontSize(13).borderRadius(12)
-              .fontColor(this.category === item ? Color.White : $r('app.color.fs_muted'))
+            Button(item, { type: ButtonType.Normal }).height(44).padding({ left: 13, right: 13 }).borderRadius(12).fontSize(14)
+              .fontColor(this.category === item ? $r('app.color.fs_on_accent') : $r('app.color.fs_text'))
               .backgroundColor(this.category === item ? $r('app.color.fs_accent') : $r('app.color.fs_surface'))
               .onClick(() => { this.category = item; this.expandedVideoId = ''; this.videoSource.filter(item); })
           }, (item: string) => item)
@@ -213,42 +205,33 @@ export struct HomePage {
 
   @Builder
   private videoCard(resource: LearningResource) {
-    Column({ space: 10 }) {
+    Column({ space: 8 }) {
       Button({ type: ButtonType.Normal }) {
-        Column({ space: 8 }) {
-          Row() {
-            Text('▷  ' + resource.category).fontSize(12).fontColor($r('app.color.fs_accent'))
-            Blank()
-            Text(resource.language + ' · 视频课程').fontSize(11).fontColor($r('app.color.fs_muted'))
-          }.width('100%')
-          Text(resource.title).fontSize(17).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.fs_text')).width('100%')
-          Text(resource.description).fontSize(13).lineHeight(21).fontColor($r('app.color.fs_muted'))
-            .width('100%')
-          Row() {
-            Text(resource.source).fontSize(11).fontColor($r('app.color.fs_muted')).layoutWeight(1)
-            Text(this.expandedVideoId === resource.id ? '收起 ∧' : '详情 ∨')
-              .fontSize(12).fontColor($r('app.color.fs_accent'))
-          }.width('100%')
-        }.width('100%').alignItems(HorizontalAlign.Start)
-      }.width('100%').padding(0).backgroundColor($r('app.color.fs_surface'))
-      .onClick(() => { this.expandedVideoId = this.expandedVideoId === resource.id ? '' : resource.id; })
+        Row({ space: 12 }) {
+          appSymbol($r('sys.symbol.play_circle'), 26, $r('app.color.fs_accent'))
+          Column({ space: 5 }) {
+            Text(resource.title).fontSize(17).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text')).width('100%')
+            Text(resource.category + ' · ' + resource.language + ' · ' + resource.source)
+              .fontSize(13).fontColor($r('app.color.fs_muted')).width('100%')
+          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          appSymbol(this.expandedVideoId === resource.id ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down'), 14, $r('app.color.fs_muted'))
+        }.width('100%')
+      }.width('100%').height('auto').constraintSize({ minHeight: 48 }).padding(0).backgroundColor(Color.Transparent)
+        .accessibilityText(resource.title + '，课程详情')
+        .onClick(() => { this.expandedVideoId = this.expandedVideoId === resource.id ? '' : resource.id; })
       if (this.expandedVideoId === resource.id) {
         Divider().color($r('app.color.fs_border'))
-        Text(resource.license).fontSize(12).lineHeight(20).fontColor($r('app.color.fs_muted')).width('100%')
-        Text('公开视频不等于开源；请遵守原站许可与第三方材料声明。')
-          .fontSize(12).lineHeight(20).fontColor($r('app.color.fs_muted')).width('100%')
-        Button('前往官方课程  ↗', { type: ButtonType.Normal }).width('100%')
-          .constraintSize({ minHeight: 44 }).padding(10).fontSize(14).borderRadius(12)
+        Text(resource.description).fontSize(15).lineHeight(23).fontColor($r('app.color.fs_text')).width('100%')
+        Text(resource.license).fontSize(13).lineHeight(20).fontColor($r('app.color.fs_muted')).width('100%')
+        Button('前往课程原站', { type: ButtonType.Normal }).height(44).width('100%').borderRadius(12)
           .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
-          .onClick(() => { this.onOpenResource(resource); })
+          .onClick(() => this.onOpenResource(resource))
       }
-    }.padding(16).width('100%').borderRadius(18).backgroundColor($r('app.color.fs_surface'))
-    .border({ width: 1, color: $r('app.color.fs_border') })
+    }.padding(16).width('100%').alignItems(HorizontalAlign.Start).borderRadius(16).backgroundColor($r('app.color.fs_surface'))
   }
 
   build() {
-    List({ space: 18, scroller: this.pageScroller }) {
+    List({ space: 16, scroller: this.pageScroller }) {
       ListItem() { this.header() }
       ListItem() { this.composer() }
       ListItem() { this.examples() }
@@ -257,12 +240,7 @@ export struct HomePage {
       LazyForEach(this.videoSource, (resource: LearningResource) => {
         ListItem() { this.videoCard(resource) }
       }, (resource: LearningResource) => resource.id)
-      ListItem() {
-        Text('把零散的知识，连接成自己的理解。').fontSize(12)
-          .fontColor($r('app.color.fs_muted')).width('100%').textAlign(TextAlign.Center)
-          .padding({ top: 8, bottom: 24 })
-      }
-    }.width('100%').height('100%').padding({ left: 20, right: 20 })
-    .cachedCount(3).scrollBar(BarState.Off).backgroundColor($r('app.color.fs_bg'))
+    }.width('100%').height('100%').padding({ left: 20, right: 20, bottom: 12 })
+      .cachedCount(3).scrollBar(BarState.Off).backgroundColor($r('app.color.fs_bg'))
   }
 }

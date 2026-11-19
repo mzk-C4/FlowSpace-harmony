@@ -10,8 +10,9 @@ const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert.ok(script, 'The delivered single HTML file must contain its own script');
 
-function runtime({ width = 390, height = 330, initialDocuments } = {}) {
-  const elements = new Map(), saved = new Map(), urls = new Map(), downloads = [];
+function runtime({ width = 390, height = 330, initialDocuments, osDark = false } = {}) {
+  const elements = new Map(), saved = new Map(), urls = new Map(), downloads = [], listeners = new Map(), classes = new Set();
+  const darkMedia = { matches: osDark, addEventListener(name, callback) { this.onChange = callback; } };
   let networkCalls = 0;
   if (initialDocuments) saved.set('flowspace.preview.documents', JSON.stringify(initialDocuments));
   const element = () => ({
@@ -29,7 +30,8 @@ function runtime({ width = 390, height = 330, initialDocuments } = {}) {
       return elements.get(selector);
     },
     querySelectorAll() { return []; },
-    documentElement: { dataset: {}, classList: { toggle() {} } },
+    addEventListener(name, callback) { listeners.set(name, callback); },
+    documentElement: { dataset: {}, classList: { toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); } } },
     createElement(tag) {
       const node = element();
       if (tag === 'a') node.click = () => downloads.push({ name: node.download, blob: urls.get(node.href) });
@@ -43,7 +45,7 @@ function runtime({ width = 390, height = 330, initialDocuments } = {}) {
   const context = vm.createContext({
     document, window: { scrollTo() {}, addEventListener() {} },
     localStorage: { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) },
-    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    matchMedia: () => darkMedia,
     requestAnimationFrame: fn => fn(), setTimeout: () => 0, clearTimeout() {},
     console, URL: BlobURL, Blob, Date, Math, AbortController,
     fetch: async () => { networkCalls++; throw Error('Unexpected network request'); }
@@ -52,7 +54,11 @@ function runtime({ width = 390, height = 330, initialDocuments } = {}) {
   return {
     run: source => vm.runInContext(source, context),
     get: selector => document.querySelector(selector),
-    saved, downloads, networkCalls: () => networkCalls
+    saved, downloads, networkCalls: () => networkCalls,
+    dispatch: (name, event) => listeners.get(name)?.(event),
+    theme: () => document.documentElement.dataset.theme,
+    hasClass: name => classes.has(name),
+    setOSDark(value) { darkMedia.matches = value; darkMedia.onChange?.(); }
   };
 }
 
@@ -293,4 +299,138 @@ test('static mobile contracts include four tabs, keyboard-safe controls and no z
   assert.match(html, /max-height:85dvh/);
   assert.match(html, /env\(safe-area-inset-bottom\)/);
   assert.match(html, /prefers-reduced-motion:reduce/);
+});
+
+test('the example remains directly usable offline even after deleting all documents', async () => {
+  const app = runtime({ initialDocuments: [] });
+  app.run('openExample()');
+  assert.equal(app.run('page'), 'diy');
+  assert.equal(app.run('docs.length'), 1);
+  assert.equal(app.run('current.nodes.length'), 10);
+  assert.equal(app.run('current.title'), '信号与系统');
+  app.run("applyEdit(()=>append(current,current.rootId,'本地编辑'))");
+  assert.equal(app.run('current.nodes.length'), 11);
+  app.run('undo()');
+  assert.equal(app.run('current.nodes.length'), 10);
+  await app.run("exportDoc('json')");
+  assert.equal(JSON.parse(await app.downloads.at(-1).blob.text()).format, 'flowspace-mindmap');
+  assert.equal(app.networkCalls(), 0);
+});
+
+test('the explicit example matches native data exactly and reopens edited or imported copies without duplication', async () => {
+  const envelope = JSON.parse(readFileSync(new URL('../../entry/src/main/resources/rawfile/example-mindmap.json', import.meta.url), 'utf8').replace(/^\uFEFF/, ''));
+  const app = runtime();
+  const previous = app.run('JSON.stringify(docs)');
+  app.run('openExample()');
+  const opened = JSON.parse(app.run('JSON.stringify(current)'));
+  assert.equal(opened.title, envelope.document.title);
+  assert.equal(opened.rootId, envelope.document.rootId);
+  assert.deepEqual(opened.nodes, envelope.document.nodes, 'IDs, text, note, parents, order and collapsed flags must match the rawfile');
+  assert.equal(opened.sourceText, envelope.document.sourceText);
+  assert.deepEqual(JSON.parse(app.run("JSON.stringify(docs.filter(d=>d.rootId!==NATIVE_EXAMPLE.rootId))")), JSON.parse(previous), 'Existing browser documents are retained unchanged');
+  app.run("applyEdit(()=>{current.nodes[1].text='我的信号复习';current.title='重命名后的示例'})");
+  const editedId = app.run('current.documentId'), count = app.run('docs.length');
+  app.run('switchPage(\'home\');openExample()');
+  assert.equal(app.run('current.documentId'), editedId);
+  assert.equal(app.run('current.nodes[1].text'), '我的信号复习');
+  assert.equal(app.run('docs.length'), count);
+  await app.run("exportDoc('json')");
+  const nativeRestored = nativeBackupService().parseBackup(await app.downloads.at(-1).blob.text());
+  assert.equal(nativeRestored.nodes[1].text, '我的信号复习');
+  const nativeText = nativeBackupService().serialize(envelope.document);
+  await app.get('#import-file').onchange({ target: { value: 'native-example.json', files: [{ size: Buffer.byteLength(nativeText), text: async () => nativeText }] } });
+  const importedId = app.run('current.documentId');
+  app.run("applyEdit(()=>{current.nodes[1].note='导入后继续编辑';current.updatedAt='2099-01-01T00:00:00.000Z'})");
+  // Give the imported copy a deterministic later saved timestamp for newest-copy selection.
+  app.run("docs.find(d=>d.documentId===current.documentId).updatedAt='2099-01-01T00:00:00.000Z'");
+  const afterImportCount = app.run('docs.length');
+  app.run('openExample()');
+  assert.equal(app.run('current.documentId'), importedId);
+  assert.equal(app.run('current.nodes[1].note'), '导入后继续编辑');
+  assert.equal(app.run('docs.length'), afterImportCount);
+  assert.equal(app.networkCalls(), 0);
+});
+
+test('deleting the signal example keeps it absent through restart until the example button is pressed', () => {
+  const app = runtime({ initialDocuments: [] });
+  app.run('openExample();removeDoc(current.documentId)');
+  app.get('#delete-doc').onclick();
+  assert.equal(app.run('docs.length'), 0);
+  const restarted = runtime({ initialDocuments: JSON.parse(app.saved.get('flowspace.preview.documents')) });
+  assert.equal(restarted.run('docs.length'), 0);
+  restarted.run('renderRecent();renderDocuments()');
+  assert.equal(restarted.run('docs.length'), 0);
+  restarted.run('openExample()');
+  assert.equal(restarted.run('current.title'), '信号与系统');
+  assert.equal(restarted.run('current.nodes.length'), 10);
+  assert.equal(restarted.run('docs.length'), 1);
+});
+
+test('keyboard shortcuts run actual actions while preserving text editing and IME composition', () => {
+  const app = runtime();
+  let prevented = 0;
+  const event = data => ({ key: '', target: { tagName: 'DIV' }, preventDefault() { prevented++; }, ...data });
+  app.get('#prompt').value = '键盘创建导图';
+  app.dispatch('keydown', event({ key: 'Enter', ctrlKey: true, target: { tagName: 'TEXTAREA', id: 'prompt' } }));
+  assert.equal(app.run('page'), 'diy');
+  const count = app.run('current.nodes.length');
+  app.run("applyEdit(()=>append(current,current.rootId,'键盘撤销示例'))");
+  app.dispatch('keydown', event({ key: 'z', ctrlKey: true, target: { tagName: 'INPUT' } }));
+  assert.equal(app.run('current.nodes.length'), count + 1, 'Text fields retain their own native undo behavior');
+  app.dispatch('keydown', event({ key: 'z', metaKey: true }));
+  assert.equal(app.run('current.nodes.length'), count);
+  app.dispatch('keydown', event({ key: 'z', metaKey: true, shiftKey: true }));
+  assert.equal(app.run('current.nodes.length'), count + 1);
+  app.get('#chat-input').value = '键盘修改';
+  app.dispatch('keydown', event({ key: 'Enter', isComposing: true, target: { tagName: 'INPUT', id: 'chat-input' } }));
+  assert.equal(app.run('candidate'), null, 'Chinese IME confirmation must not send a message');
+  app.dispatch('keydown', event({ key: 'Enter', target: { tagName: 'INPUT', id: 'chat-input' } }));
+  assert.equal(app.run('candidate.text'), '键盘修改');
+  const revision = app.run('current.revision');
+  app.run('openEditorMenu()');
+  app.dispatch('keydown', event({ key: 'z', ctrlKey: true }));
+  assert.equal(app.run('current.revision'), revision, 'An open modal owns keyboard input');
+  assert.equal(prevented, 4);
+});
+
+test('theme selection, system dark changes and reduced motion update rendering and saved preferences', () => {
+  const app = runtime({ osDark: true });
+  assert.equal(app.theme(), 'dark');
+  assert.match(app.get('#map-svg').innerHTML, /fill="#B1AEFF"/);
+  app.run("settings.themeMode='light';applyTheme()");
+  assert.equal(app.theme(), 'light');
+  app.run("page='diy';applyTheme()");
+  assert.match(app.get('#map-svg').innerHTML, /fill="#5354C7"/);
+  app.run("settings.themeMode='system';applyTheme()");
+  app.setOSDark(false);
+  assert.equal(app.theme(), 'light');
+  app.setOSDark(true);
+  assert.equal(app.theme(), 'dark');
+  app.run('toggleMotion()');
+  assert.equal(app.hasClass('reduce-motion'), true);
+  assert.equal(app.get('#reduce-motion').getAttribute('aria-checked'), 'true');
+  assert.equal(JSON.parse(app.saved.get('flowspace.preview.settings')).reduceMotion, true);
+  app.run('toggleMotion()');
+  assert.equal(app.hasClass('reduce-motion'), false);
+});
+
+test('Apple-style page contracts remove promotional chrome and keep small-screen and desktop alternatives', () => {
+  assert.match(html, /--bg:#F5F5F7;--surface:#FFFFFF;--text:#1D1D1F/);
+  assert.match(html, /--accent:#5354C7/);
+  assert.match(html, /html\[data-theme=dark\]\{--bg:#101114;--surface:#1C1D22/);
+  assert.match(html, /--accent:#B1AEFF/);
+  assert.match(html, /<h1>新建思维导图<\/h1>/);
+  assert.doesNotMatch(html, /A LITTLE CLARITY|A GOOD PLACE TO BEGIN|让想法<br>|class="desktop-note"|class="screen-label"/);
+  assert.match(html, /grid-template-columns:minmax\(0,1fr\) 300px/);
+  assert.match(html, /@media\(max-width:760px\)/);
+  assert.match(html, /\.editor-grid\{display:block\}/);
+  assert.match(html, /\.chip\.active\{background:var\(--surface\)/);
+  assert.match(html, /role="group" aria-roledescription="思维导图"/);
+  const app = runtime({ width: 320, height: 260 });
+  app.run('openExample();fitMap()');
+  const fitted = JSON.parse(app.run('JSON.stringify({zoom,pan,bounds})'));
+  assert.ok(fitted.pan.x + fitted.bounds.w * fitted.zoom <= 320);
+  assert.ok(fitted.pan.y + fitted.bounds.h * fitted.zoom <= 260);
+  app.run('openEditorMenu()');
+  assert.match(app.get('#dialog-content').innerHTML, /删除选中分支/);
 });

@@ -1,3 +1,4 @@
+import exampleBackup from '../../resources/rawfile/example-mindmap.json';
 import common from '@ohos.app.ability.common';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
@@ -174,6 +175,14 @@ class ExportService {
       const bytes: Uint8Array = new util.TextEncoder().encodeInto(text);
       await this.write(uris[0], bytes.buffer as ArrayBuffer);
     }
+  }
+
+  get exampleId(): string { return exampleBackup.document.documentId; }
+
+  loadExample(): MindMapDocument {
+    const doc: MindMapDocument = this.parseBackup(JSON.stringify(exampleBackup));
+    doc.documentId = this.exampleId;
+    return doc;
   }
 
   async importDocument(context: common.UIAbilityContext): Promise<MindMapDocument> {
