@@ -26,6 +26,8 @@ struct Index {
   @Local saveStatus: string = '尚未保存';
   @Local message: string = '';
   @Local connectionMessage: string = '';
+  @Local resourceOpenError: string = '';
+  @Local failedResourceId: string = '';
   @Local ready: boolean = false;
   @Local loading: boolean = true;
   @Local canUndo: boolean = false;
@@ -300,10 +302,17 @@ struct Index {
   }
 
   private async openResource(resource: LearningResource): Promise<void> {
+    if (this.message === this.resourceOpenError) this.message = '';
+    this.resourceOpenError = '';
+    this.failedResourceId = '';
     try {
       if (!resource.url.startsWith('https://')) throw new Error('资源地址无效');
       await this.context().startAbility({ action: 'ohos.want.action.viewData', uri: resource.url });
-    } catch (error) { this.message = '无法打开原站：' + (error as Error).message; }
+    } catch (error) {
+      this.failedResourceId = resource.id;
+      this.resourceOpenError = '无法打开原站：' + (error as Error).message;
+      this.message = this.resourceOpenError;
+    }
   }
 
   @Builder
@@ -354,7 +363,8 @@ struct Index {
                 onExport: (format: string) => { this.exportDocument(format); } })
             }.tabBar(this.tabLabel('DIY 导图', $r('sys.symbol.rectangle_3_group'), 1))
             TabContent() {
-              LibraryPage({ onOpenResource: (resource: LearningResource) => { this.openResource(resource); },
+              LibraryPage({ externalOpenError: this.resourceOpenError, failedResourceId: this.failedResourceId,
+                onOpenResource: (resource: LearningResource) => { this.openResource(resource); },
                 onUseTopic: (text: string) => { this.generate(text, true); } })
             }.tabBar(this.tabLabel('资料库', $r('sys.symbol.book_pages'), 2))
             TabContent() {

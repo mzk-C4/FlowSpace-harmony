@@ -434,3 +434,30 @@ test('Apple-style page contracts remove promotional chrome and keep small-screen
   app.run('openEditorMenu()');
   assert.match(app.get('#dialog-content').innerHTML, /删除选中分支/);
 });
+
+test('library search matches license and language with multiple terms and reset restores the full catalog', () => {
+  const app = runtime();
+  app.get('#resource-search').value = 'BSD 英语';
+  app.run('renderResources()');
+  assert.equal(app.get('#resource-count').textContent, '3 项资料');
+  assert.match(app.get('#resource-list').innerHTML, /NumPy/);
+  assert.doesNotMatch(app.get('#resource-list').innerHTML, /Think DSP/);
+  app.run("filter='电子';renderResources()");
+  assert.match(app.get('#resource-list').innerHTML, /没有匹配/);
+  app.run('resetResources()');
+  assert.equal(app.get('#resource-count').textContent, '13 项资料');
+  assert.equal(app.get('#resource-reset').hidden, true);
+});
+
+test('library details show verification date, separate code license and title-only generation boundary', () => {
+  const app = runtime();
+  app.run("openResource('d2l')");
+  assert.match(app.get('#dialog-content').innerHTML, /2026-11-23|资料详情/);
+  const body = app.get('#dialog-content').innerHTML;
+  assert.match(body, /LICENSE-SAMPLECODE/);
+  assert.match(body, /不会读取原站全文/);
+  app.get('#resource-topic').onclick();
+  assert.equal(app.run('page'), 'home');
+  assert.match(app.get('#prompt').value, /动手学深度学习/);
+  assert.match(app.get('#prompt').value, /没有读取原站全文/);
+});

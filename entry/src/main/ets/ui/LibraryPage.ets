@@ -1,6 +1,7 @@
+import { promptAction } from '@kit.ArkUI';
 import { appSymbol } from './Controls';
 import { LearningResource } from '../domain/MindMap';
-import { OPEN_RESOURCES, RESOURCE_CATEGORIES, RESOURCE_LICENSE_URLS, findOpenResources } from '../data/ResourceCatalog';
+import { OPEN_RESOURCES, RESOURCE_CATEGORIES, RESOURCE_LICENSE_URLS, RESOURCE_VERIFICATION, findOpenResources, resourceTopic } from '../data/ResourceCatalog';
 
 // API 24: LazyForEach 按需创建列表行；筛选后通过 SDK 的数据变更协议刷新。
 class ResourceDataSource implements IDataSource {
@@ -25,6 +26,8 @@ class ResourceDataSource implements IDataSource {
 @ComponentV2
 export struct LibraryPage {
   @Event onOpenResource: (resource: LearningResource) => void = () => {};
+  @Param externalOpenError: string = '';
+  @Param failedResourceId: string = '';
   @Event onUseTopic: (text: string) => void = () => {};
   @Local query: string = '';
   @Local category: string = '全部';
@@ -49,23 +52,35 @@ export struct LibraryPage {
     this.showingDetails = true;
   }
 
-  private openLicense(): void {
+  private openLicense(code: boolean = false): void {
     const resource: LearningResource = this.selectedResource;
     const evidence: LearningResource = {
       id: resource.id + '-license', title: resource.title + ' · 许可依据', category: resource.category,
-      description: resource.license, url: RESOURCE_LICENSE_URLS[resource.id], source: resource.source,
+      description: resource.license, url: code ? RESOURCE_VERIFICATION[resource.id].codeLicenseUrl : RESOURCE_LICENSE_URLS[resource.id], source: resource.source,
       license: resource.license, language: resource.language, kind: '官方许可依据'
     };
     this.onOpenResource(evidence);
   }
 
+  private async chooseLicense(): Promise<void> {
+    if (RESOURCE_VERIFICATION[this.selectedResource.id].codeLicenseUrl.length === 0) {
+      this.openLicense();
+      return;
+    }
+    try {
+      const result: promptAction.ActionMenuSuccessResponse = await this.getUIContext().getPromptAction().showActionMenu({
+        title: '内容与代码分别授权，请选择许可依据',
+        buttons: [{ text: '教材 / 内容许可', color: $r('app.color.fs_accent') },
+          { text: '配套代码许可', color: $r('app.color.fs_accent') }]
+      });
+      if (result.index === 0 || result.index === 1) this.openLicense(result.index === 1);
+    } catch (_) { /* 系统取消菜单不打开链接，也不改变当前详情。 */ }
+  }
+
   private useTopic(): void {
     if (this.pendingTopic.length > 0) return;
     const resource: LearningResource = this.selectedResource;
-    this.pendingTopic = '请围绕“' + resource.title + '”的学习主题，生成一份工科知识思维导图，包含前置知识、' +
-      '核心概念、概念关系、练习建议和学习顺序。参考主题介绍：' + resource.description +
-      '\n这里只提供主题与简短介绍，没有读取原站全文；不要声称已阅读、总结或引用原站具体章节。' +
-      '请按通用知识组织，并提示用户对照官方资料核实。';
+    this.pendingTopic = resourceTopic(resource);
     this.showingDetails = false;
   }
 
@@ -114,6 +129,7 @@ export struct LibraryPage {
         .backgroundColor($r('app.color.fs_surface')).borderRadius(13)
         .accessibilityText('搜索资料，支持标题、主题、来源和许可')
         .onChange((value: string) => { this.query = value; this.filterResources(); })
+      Row({ space: 4 }) {
       Scroll() {
         Row({ space: 3 }) {
           ForEach(RESOURCE_CATEGORIES, (category: string) => {
@@ -126,8 +142,10 @@ export struct LibraryPage {
               .onClick(() => { this.category = category; this.filterResources(); })
           }, (category: string) => category)
         }.padding(4)
-      }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
-        .backgroundColor($r('app.color.fs_group')).borderRadius(14)
+      }.layoutWeight(1).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
+      appSymbol($r('sys.symbol.chevron_right'), 12, $r('app.color.fs_muted'))
+      }.width('100%').padding({ right: 8 }).backgroundColor($r('app.color.fs_group')).borderRadius(14)
+        .accessibilityDescription('学科与资料分类，可左右滑动查看全部选项')
       Row() {
         Text(this.resultCount + ' 项资料').fontSize(13).fontColor($r('app.color.fs_muted')).layoutWeight(1)
         if (this.query.length > 0 || this.category !== '全部') {
@@ -176,7 +194,7 @@ export struct LibraryPage {
               .fontSize(12).fontColor($r('app.color.fs_muted')).width('100%')
             Text(this.selectedResource.title).fontSize(25).fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.fs_text')).width('100%')
-            Text(this.selectedResource.kind).fontSize(13).fontColor($r('app.color.fs_muted')).width('100%')
+            Text(this.selectedResource.kind + ' · 核验 ' + RESOURCE_VERIFICATION[this.selectedResource.id].verifiedAt).fontSize(13).fontColor($r('app.color.fs_muted')).width('100%')
             Text(this.selectedResource.description).fontSize(15).lineHeight(24)
               .fontColor($r('app.color.fs_text')).width('100%')
           }.width('100%').alignItems(HorizontalAlign.Start)
@@ -198,9 +216,17 @@ export struct LibraryPage {
               .fontSize(12).lineHeight(19).fontColor($r('app.color.fs_muted'))
             Button('查看许可依据', { type: ButtonType.Normal }).width('100%').height(46).fontSize(14)
               .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(11)
-              .onClick(() => { this.openLicense(); })
+              .onClick(() => { this.chooseLicense(); })
           }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
             .backgroundColor($r('app.color.fs_surface')).borderRadius(16)
+          if (this.externalOpenError.length > 0 &&
+            (this.failedResourceId === this.selectedResource.id || this.failedResourceId === this.selectedResource.id + '-license')) {
+            Column({ space: 8 }) {
+              Text(this.externalOpenError).fontSize(13).lineHeight(21).fontColor($r('app.color.fs_danger'))
+              Text('请检查系统浏览器与网络，再点击上方入口重试。也可长按来源链接复制到浏览器。')
+                .fontSize(12).lineHeight(19).fontColor($r('app.color.fs_muted'))
+            }.width('100%').alignItems(HorizontalAlign.Start)
+          }
         }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 3, bottom: 16 })
       }.width('100%').layoutWeight(1).scrollBar(BarState.Auto)
       Button('用作导图主题', { type: ButtonType.Normal }).width('100%').height(50)

@@ -1,0 +1,282 @@
+[
+  {
+    "resourceId": "d2l",
+    "purpose": "entry",
+    "url": "https://github.com/d2l-ai/d2l-en",
+    "status": 200,
+    "finalUrl": "https://github.com/d2l-ai/d2l-en",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:48.464Z"
+  },
+  {
+    "resourceId": "d2l",
+    "purpose": "license",
+    "url": "https://github.com/d2l-ai/d2l-en#license-summary",
+    "status": 200,
+    "finalUrl": "https://github.com/d2l-ai/d2l-en#license-summary",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:48.475Z"
+  },
+  {
+    "resourceId": "d2l",
+    "purpose": "code-license",
+    "url": "https://github.com/d2l-ai/d2l-en/blob/master/LICENSE-SAMPLECODE",
+    "status": 200,
+    "finalUrl": "https://github.com/d2l-ai/d2l-en/blob/master/LICENSE-SAMPLECODE",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:48.402Z"
+  },
+  {
+    "resourceId": "thinkdsp",
+    "purpose": "entry",
+    "url": "https://github.com/AllenDowney/ThinkDSP",
+    "status": 200,
+    "finalUrl": "https://github.com/AllenDowney/ThinkDSP",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:48.449Z"
+  },
+  {
+    "resourceId": "thinkdsp",
+    "purpose": "license",
+    "url": "https://github.com/AllenDowney/ThinkDSP#readme",
+    "status": 200,
+    "finalUrl": "https://github.com/AllenDowney/ThinkDSP#readme",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:48.457Z"
+  },
+  {
+    "resourceId": "thinkdsp",
+    "purpose": "code-license",
+    "url": "https://github.com/AllenDowney/ThinkDSP/blob/master/LICENSE",
+    "status": 200,
+    "finalUrl": "https://github.com/AllenDowney/ThinkDSP/blob/master/LICENSE",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:49.681Z"
+  },
+  {
+    "resourceId": "missing",
+    "purpose": "entry",
+    "url": "https://github.com/missing-semester/missing-semester",
+    "status": 200,
+    "finalUrl": "https://github.com/missing-semester/missing-semester",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:49.716Z"
+  },
+  {
+    "resourceId": "missing",
+    "purpose": "license",
+    "url": "https://missing.csail.mit.edu/license/",
+    "status": 200,
+    "finalUrl": "https://missing.csail.mit.edu/license/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:49.345Z"
+  },
+  {
+    "resourceId": "mit6006",
+    "purpose": "entry",
+    "url": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/",
+    "status": 200,
+    "finalUrl": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:49.018Z"
+  },
+  {
+    "resourceId": "mit6006",
+    "purpose": "license",
+    "url": "https://ocw.mit.edu/pages/privacy-and-terms-of-use/",
+    "status": 200,
+    "finalUrl": "https://ocw.mit.edu/pages/privacy-and-terms-of-use/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:48.934Z"
+  },
+  {
+    "resourceId": "cpalg",
+    "purpose": "entry",
+    "url": "https://cp-algorithms.com/",
+    "status": 200,
+    "finalUrl": "https://cp-algorithms.com/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:50.597Z"
+  },
+  {
+    "resourceId": "cpalg",
+    "purpose": "license",
+    "url": "https://github.com/cp-algorithms/cp-algorithms/blob/main/LICENSE",
+    "status": 200,
+    "finalUrl": "https://github.com/cp-algorithms/cp-algorithms/blob/main/LICENSE",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:50.886Z"
+  },
+  {
+    "resourceId": "algpython",
+    "purpose": "entry",
+    "url": "https://github.com/TheAlgorithms/Python",
+    "status": 200,
+    "finalUrl": "https://github.com/TheAlgorithms/Python",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:51.021Z"
+  },
+  {
+    "resourceId": "algpython",
+    "purpose": "license",
+    "url": "https://github.com/TheAlgorithms/Python/blob/master/LICENSE.md",
+    "status": 200,
+    "finalUrl": "https://github.com/TheAlgorithms/Python/blob/master/LICENSE.md",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:50.787Z"
+  },
+  {
+    "resourceId": "ostep",
+    "purpose": "entry",
+    "url": "https://pages.cs.wisc.edu/~remzi/OSTEP/",
+    "status": 200,
+    "finalUrl": "https://pages.cs.wisc.edu/~remzi/OSTEP/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:51.243Z"
+  },
+  {
+    "resourceId": "ostep",
+    "purpose": "license",
+    "url": "https://pages.cs.wisc.edu/~remzi/OSTEP/",
+    "status": 200,
+    "finalUrl": "https://pages.cs.wisc.edu/~remzi/OSTEP/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:52.603Z"
+  },
+  {
+    "resourceId": "xv6",
+    "purpose": "entry",
+    "url": "https://github.com/mit-pdos/xv6-riscv",
+    "status": 200,
+    "finalUrl": "https://github.com/mit-pdos/xv6-riscv",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:52.379Z"
+  },
+  {
+    "resourceId": "xv6",
+    "purpose": "license",
+    "url": "https://github.com/mit-pdos/xv6-riscv/blob/riscv/LICENSE",
+    "status": 200,
+    "finalUrl": "https://github.com/mit-pdos/xv6-riscv/blob/riscv/LICENSE",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:52.382Z"
+  },
+  {
+    "resourceId": "kicad",
+    "purpose": "entry",
+    "url": "https://docs.kicad.org/",
+    "status": 200,
+    "finalUrl": "https://docs.kicad.org/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:51.820Z"
+  },
+  {
+    "resourceId": "kicad",
+    "purpose": "license",
+    "url": "https://www.kicad.org/about/licenses/",
+    "status": 200,
+    "finalUrl": "https://www.kicad.org/about/licenses/",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:52.058Z"
+  },
+  {
+    "resourceId": "freertos",
+    "purpose": "entry",
+    "url": "https://github.com/FreeRTOS/FreeRTOS-Kernel",
+    "status": 200,
+    "finalUrl": "https://github.com/FreeRTOS/FreeRTOS-Kernel",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:53.802Z"
+  },
+  {
+    "resourceId": "freertos",
+    "purpose": "license",
+    "url": "https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/LICENSE.md",
+    "status": 200,
+    "finalUrl": "https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/LICENSE.md",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:53.725Z"
+  },
+  {
+    "resourceId": "numpy",
+    "purpose": "entry",
+    "url": "https://github.com/numpy/numpy",
+    "status": 200,
+    "finalUrl": "https://github.com/numpy/numpy",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:53.849Z"
+  },
+  {
+    "resourceId": "numpy",
+    "purpose": "license",
+    "url": "https://github.com/numpy/numpy/blob/main/LICENSE.txt",
+    "status": 200,
+    "finalUrl": "https://github.com/numpy/numpy/blob/main/LICENSE.txt",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:53.674Z"
+  },
+  {
+    "resourceId": "scipy",
+    "purpose": "entry",
+    "url": "https://github.com/scipy/scipy",
+    "status": 200,
+    "finalUrl": "https://github.com/scipy/scipy",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:53.956Z"
+  },
+  {
+    "resourceId": "scipy",
+    "purpose": "license",
+    "url": "https://github.com/scipy/scipy/blob/main/LICENSE.txt",
+    "status": 200,
+    "finalUrl": "https://github.com/scipy/scipy/blob/main/LICENSE.txt",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:55.270Z"
+  },
+  {
+    "resourceId": "sympy",
+    "purpose": "entry",
+    "url": "https://github.com/sympy/sympy",
+    "status": 200,
+    "finalUrl": "https://github.com/sympy/sympy",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:55.782Z"
+  },
+  {
+    "resourceId": "sympy",
+    "purpose": "license",
+    "url": "https://github.com/sympy/sympy/blob/master/LICENSE",
+    "status": 200,
+    "finalUrl": "https://github.com/sympy/sympy/blob/master/LICENSE",
+    "exitCode": 0,
+    "error": "",
+    "checkedAt": "2026-11-22T22:37:55.252Z"
+  }
+]

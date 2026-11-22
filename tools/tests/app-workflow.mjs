@@ -297,3 +297,28 @@ test('connection status distinguishes unconfigured gateway, configuration-only s
   client.health = async () => { throw new Error('后端不可达'); };
   await app.checkConnection(); assert.match(app.connectionMessage, /连接失败.*后端不可达/);
 });
+
+test('source launch failure is returned to the library sheet and a successful retry clears that failure', async () => {
+  const { app } = await appHarness();
+  const resource = { id: 'd2l', url: 'https://github.com/d2l-ai/d2l-en' };
+  app.context = () => ({ async startAbility() { throw new Error('模拟没有系统浏览器'); } });
+  await app.openResource(resource);
+  assert.equal(app.failedResourceId, 'd2l');
+  assert.match(app.resourceOpenError, /无法打开原站.*没有系统浏览器/);
+  assert.equal(app.message, app.resourceOpenError);
+  const launches = [];
+  app.context = () => ({ async startAbility(want) { launches.push(want); } });
+  await app.openResource(resource);
+  assert.equal(launches[0].uri, resource.url);
+  assert.equal(launches[0].action, 'ohos.want.action.viewData');
+  assert.equal(app.resourceOpenError, ''); assert.equal(app.failedResourceId, ''); assert.equal(app.message, '');
+});
+
+test('invalid resource destinations never reach the system browser', async () => {
+  const { app } = await appHarness();
+  let launched = false;
+  app.context = () => ({ async startAbility() { launched = true; } });
+  await app.openResource({ id: 'invalid', url: 'http://example.com' });
+  assert.equal(launched, false);
+  assert.match(app.resourceOpenError, /资源地址无效/);
+});

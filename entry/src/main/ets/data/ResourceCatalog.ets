@@ -1,6 +1,6 @@
 import { LearningResource } from '../domain/MindMap';
 
-// 人工核验于 2026-11-03。这里只保存原创简介与官方链接，不缓存原站正文。
+// 来源与许可复核于 2026-11-23（Asia/Shanghai），HTTP 可达不等于真机访问。这里只保存原创简介与官方链接，不缓存原站正文。
 export const RESOURCE_CATEGORIES: string[] = ['全部', '开放教材', '课程仓库', '算法', '系统', '电子', '数值方法'];
 
 export const OPEN_RESOURCES: LearningResource[] = [
@@ -14,7 +14,7 @@ export const OPEN_RESOURCES: LearningResource[] = [
     id: 'thinkdsp', title: 'Think DSP · 用 Python 学信号处理', category: '开放教材',
     description: '从波形、频谱到滤波和卷积，通过 Python 笔记本建立数字信号处理直觉。建议先掌握基础微积分。',
     url: 'https://github.com/AllenDowney/ThinkDSP', source: '作者 Allen B. Downey 官方仓库', language: '英语', kind: '开放教材（限非商业）',
-    license: '教材：CC BY-NC-SA 4.0（含非商业限制）；配套代码的独立许可：以来源页条款为准，不将教材许可推定为软件许可。'
+    license: '教材：CC BY-NC-SA 4.0（含非商业限制）；仓库配套软件：MIT（见 LICENSE）；教材与代码分别适用各自条款。'
   },
   {
     id: 'missing', title: 'Missing Semester · 开发工具基础', category: '课程仓库',
@@ -80,7 +80,7 @@ export const OPEN_RESOURCES: LearningResource[] = [
     id: 'sympy', title: 'SymPy · 符号数学与公式推导', category: '数值方法',
     description: '用于符号微积分、代数方程与矩阵运算。适合比较精确符号推导与浮点数值计算的适用场景。',
     url: 'https://github.com/sympy/sympy', source: 'SymPy 官方项目仓库', language: '英语 / Python', kind: '开源符号计算库',
-    license: '仓库主体：BSD-3-Clause；LICENSE 另列第三方及部分文件的许可，使用时应逐项核对。外部材料以自身条款为准。'
+    license: '仓库主许可：BSD-3-Clause；个别文件及第三方内容以各自声明为准。外部材料不自动适用代码许可。'
   }
 ];
 
@@ -102,11 +102,121 @@ export const RESOURCE_LICENSE_URLS: Record<string, string> = {
 };
 
 export function findOpenResources(query: string, category: string): LearningResource[] {
-  const term: string = query.trim().toLowerCase();
+  const terms: string[] = query.trim().toLowerCase().split(/\s+/).filter((term: string): boolean => term.length > 0);
   return OPEN_RESOURCES.filter((resource: LearningResource): boolean => {
     const matchesCategory: boolean = category === '全部' || resource.category === category;
     const haystack: string = resource.title + ' ' + resource.description + ' ' + resource.source + ' ' +
-      resource.category + ' ' + resource.kind + ' ' + resource.language + ' ' + resource.license;
-    return matchesCategory && (term.length === 0 || haystack.toLowerCase().includes(term));
+      resource.category + ' ' + resource.kind + ' ' + resource.language + ' ' + resource.license + ' ' + resource.id + ' ' + resource.url;
+    return matchesCategory && terms.every((term: string): boolean => haystack.toLowerCase().includes(term));
   });
+}
+
+// 本模块补充登记，不修改公共领域类型。resourceId 与 LearningResource.id 一一对应。
+export interface ResourceVerification {
+  resourceId: string;
+  resourceType: string;
+  verifiedAt: string;
+  access: string;
+  codeLicenseUrl: string;
+}
+
+export const RESOURCE_VERIFICATION: Record<string, ResourceVerification> = {
+  "d2l": {
+    "resourceId": "d2l",
+    "resourceType": "开放教材",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": "https://github.com/d2l-ai/d2l-en/blob/master/LICENSE-SAMPLECODE"
+  },
+  "thinkdsp": {
+    "resourceId": "thinkdsp",
+    "resourceType": "开放教材",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": "https://github.com/AllenDowney/ThinkDSP/blob/master/LICENSE"
+  },
+  "missing": {
+    "resourceId": "missing",
+    "resourceType": "开放课程",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "mit6006": {
+    "resourceId": "mit6006",
+    "resourceType": "开放课程",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "cpalg": {
+    "resourceId": "cpalg",
+    "resourceType": "开放文章",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "algpython": {
+    "resourceId": "algpython",
+    "resourceType": "开源代码",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "ostep": {
+    "resourceId": "ostep",
+    "resourceType": "公开阅读资料",
+    "verifiedAt": "2026-11-23",
+    "access": "作者提供免费分章阅读；未认定教材有开放再分发许可。本轮 HTTP GET 200。",
+    "codeLicenseUrl": ""
+  },
+  "xv6": {
+    "resourceId": "xv6",
+    "resourceType": "开源代码",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "kicad": {
+    "resourceId": "kicad",
+    "resourceType": "开放文档",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "freertos": {
+    "resourceId": "freertos",
+    "resourceType": "开源代码",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "numpy": {
+    "resourceId": "numpy",
+    "resourceType": "开源代码",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "scipy": {
+    "resourceId": "scipy",
+    "resourceType": "开源代码",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  },
+  "sympy": {
+    "resourceId": "sympy",
+    "resourceType": "开源代码",
+    "verifiedAt": "2026-11-23",
+    "access": "免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。",
+    "codeLicenseUrl": ""
+  }
+};
+
+export function resourceTopic(resource: LearningResource): string {
+  return '请围绕“' + resource.title + '”的学习主题，生成一份工科知识思维导图，包含前置知识、' +
+    '核心概念、概念关系、练习建议和学习顺序。参考主题介绍：' + resource.description +
+    '\n这里只提供主题与简短介绍，没有读取原站全文；不要声称已阅读、总结或引用原站具体章节。' +
+    '请按通用知识组织，并提示用户对照官方资料核实。';
 }
