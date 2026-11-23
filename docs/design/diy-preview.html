@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlowSpace DIY 画布 · 2D/3D 交互预览</title>
+<style>
+  :root{
+    --bg:#F5F5F7;--surface:#fff;--text:#1D1D1F;--muted:#62636D;--border:#DADAE2;
+    --accent:#5354C7;--soft:#ECECFA;--connector:#81849B;--grid:#DEDFE7;--on:#fff;--danger:#A62E3C;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:#E9E9EF;color:var(--text);
+    font-family:"HarmonyOS Sans SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif}
+  .wrap{display:flex;gap:28px;align-items:flex-start;justify-content:center;padding:28px;flex-wrap:wrap}
+  .stage{position:relative}
+  .caption{font-size:12px;color:#5B5B66;margin:0 0 8px 4px}
+  .phone{width:360px;height:780px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;
+    border-radius:22px;box-shadow:0 18px 50px #0002;position:relative}
+  .head{display:flex;align-items:center;padding:7px 8px 7px 18px;background:var(--surface);border-bottom:.5px solid var(--border);height:72px;flex:0 0 72px}
+  .head .copy{flex:1;min-width:0}
+  .head h1{margin:0 0 2px;font-size:23px;line-height:1.15;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .head small{font-size:12px;color:var(--muted)}
+  .icon{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .ib{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:var(--accent);padding:0;flex:0 0 44px;border-radius:22px}
+  .ib.off{opacity:.34}
+  .canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--bg);
+    background-image:radial-gradient(var(--grid) 1.1px,transparent 1.2px);background-size:24px 24px;touch-action:none;cursor:grab}
+  .canvas.dragging{cursor:grabbing}
+  .canvas svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .card{position:absolute;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;
+    user-select:none;-webkit-user-select:none;cursor:pointer;border-radius:14px;text-align:center;line-height:1.25}
+  .card .label{pointer-events:none;padding:0 6px;overflow:hidden;text-overflow:ellipsis}
+  .badge{position:absolute;border-radius:50%;background:var(--accent);color:var(--on);display:grid;place-items:center;
+    cursor:pointer;user-select:none;font-weight:500;line-height:1}
+  .zoom{position:absolute;right:12px;bottom:12px;height:44px;display:flex;align-items:center;background:var(--surface);
+    border:.5px solid var(--border);border-radius:22px;padding:0 2px;z-index:5000;box-shadow:0 2px 10px #0001}
+  .zoom button{width:44px;height:44px;border:0;background:transparent;color:var(--accent);display:grid;place-items:center;padding:0;border-radius:22px}
+  .zoom button.mode{font-size:12px;font-weight:600}
+  .zoom button.mode.active{background:var(--soft)}
+  .zoom span{min-width:40px;text-align:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .zoom i{width:.5px;height:20px;background:var(--border)}
+  .foot{display:flex;align-items:center;gap:2px;padding:4px 8px 6px 16px;background:var(--surface);
+    border-top:.5px solid var(--border);height:58px;flex:0 0 58px;z-index:6000}
+  .foot .copy{flex:1;min-width:0}
+  .foot label{display:block;font-size:11px;color:var(--muted);line-height:1.2}
+  .foot strong{display:block;font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+  .chat{height:40px;min-width:80px;border:0;border-radius:20px;background:var(--soft);color:var(--accent);
+    font-size:14px;font-weight:500;padding:0 12px;white-space:nowrap}
+  .nav{height:60px;flex:0 0 60px;background:var(--surface);border-top:.5px solid var(--border);display:grid;
+    grid-template-columns:repeat(4,1fr);padding:4px 8px;font-size:11px;color:var(--muted);text-align:center}
+  .nav div{display:grid;place-items:center;gap:2px;line-height:1.35}
+  .nav .on{color:var(--accent);font-weight:500}
+  .side{width:280px;padding:6px 0}
+  .side h2{font-size:19px;margin:0 0 8px}
+  .side p{font-size:13px;line-height:1.7;color:#555560;margin:0 0 14px}
+  .controls{display:grid;gap:8px;margin:16px 0}
+  .controls .row{display:flex;gap:8px;flex-wrap:wrap}
+  .controls button{height:44px;border:1px solid var(--border);background:var(--surface);color:var(--text);
+    border-radius:12px;padding:0 14px;font-size:13px;cursor:pointer}
+  .controls button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .meta{font-size:12px;line-height:1.9;color:#666671;background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;padding:12px 14px;margin-top:14px}
+  .meta b{color:var(--text);font-weight:600}
+  .notice{font-size:11px;line-height:1.7;color:#777782;margin-top:12px}
+  @media (max-width:760px){.wrap{padding:14px;gap:16px}.side{width:360px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <p class="caption">设计预览 · HTML 复刻，非鸿蒙原生截图</p>
+    <div class="phone">
+      <header class="head">
+        <div class="copy"><h1 id="title">信号与系统</h1><small id="status">已保存 · 10 个节点</small></div>
+        <button class="ib off" aria-label="撤销"><svg class="icon" viewBox="0 0 24 24"><path d="m8 5-5 5 5 5M3 10h9a6 6 0 0 1 6 6"/></svg></button>
+        <button class="ib off" aria-label="重做"><svg class="icon" viewBox="0 0 24 24"><path d="m16 5 5 5-5 5m5-5h-9a6 6 0 0 0-6 6"/></svg></button>
+        <button class="ib" aria-label="导出"><svg class="icon" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M4 14v6h16v-6"/></svg></button>
+      </header>
+      <main class="canvas" id="canvas">
+        <svg id="edges" aria-hidden="true"></svg>
+        <div id="cards"></div>
+        <div class="zoom">
+          <button class="mode" id="mode-btn" title="切换 2D / 3D">2D</button>
+          <i></i>
+          <button id="zoom-out" aria-label="缩小">−</button>
+          <span id="zoom-label">100%</span>
+          <button id="zoom-in" aria-label="放大">＋</button>
+          <i></i>
+          <button id="fit" aria-label="适应画布">◎</button>
+        </div>
+      </main>
+      <footer class="foot">
+        <div class="copy"><label id="scope-label">当前分支</label><strong id="selected-label">信号表征</strong></div>
+        <button class="ib" aria-label="编辑"><svg class="icon" viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16v4Z"/><path d="m14 6 4 4"/></svg></button>
+        <button class="ib" aria-label="添加子节点"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg></button>
+        <button class="ib" aria-label="更多"><svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></button>
+        <button class="chat">继续整理</button>
+      </footer>
+      <nav class="nav">
+        <div><svg class="icon" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/></svg>首页</div>
+        <div class="on"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="9" width="6" height="6" rx="2"/><rect x="16" y="2" width="6" height="6" rx="2"/><rect x="16" y="16" width="6" height="6" rx="2"/><path d="M8 12h4V5h4m-4 7v7h4"/></svg>DIY 导图</div>
+        <div><svg class="icon" viewBox="0 0 24 24"><path d="M3 4h7v17H3Zm7 0h6v17h-6Zm6 1 4-1 4 16-4 1Z"/></svg>资料库</div>
+        <div><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>个人</div>
+      </nav>
+    </div>
+  </div>
+
+  <aside class="side">
+    <h2>2D / 3D 画布预览</h2>
+    <p>这是按当前布局与投影参数复刻的交互预览。拖动画布平移，滚轮缩放；点击节点选中，点击右侧圆点折叠/展开分支。</p>
+    <div class="controls">
+      <div class="row">
+        <button data-mode="2d" class="active">2D</button>
+        <button data-mode="3d">3D</button>
+      </div>
+      <div class="row">
+        <button data-layout="right" class="active">向右布局</button>
+        <button data-layout="down">向下布局</button>
+      </div>
+      <div class="row">
+        <button id="fit2">适应画布</button>
+        <button id="collapse-demo">折叠「系统性质」</button>
+      </div>
+    </div>
+    <div class="meta">
+      <div>视图：<b id="meta-mode">2D</b></div>
+      <div>布局：<b id="meta-layout">向右</b></div>
+      <div>缩放：<b id="meta-zoom">—</b></div>
+      <div>选中：<b id="meta-selected">信号表征</b></div>
+    </div>
+    <p class="notice">2D 使用平面树布局；3D 使用分层卡片：层级缩小、右下错层、阴影与厚度面，导出仍为完整 2D 树。此页面不连接模型，不替代原生设备验收。</p>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const nodes = [
+    {id:'signals',parentId:'',order:0,text:'信号与系统',collapsed:false},
+    {id:'signal',parentId:'signals',order:0,text:'信号表征',collapsed:false},
+    {id:'system',parentId:'signals',order:1,text:'系统性质',collapsed:false},
+    {id:'transform',parentId:'signals',order:2,text:'频域分析',collapsed:false},
+    {id:'continuous',parentId:'signal',order:0,text:'连续与离散',collapsed:false},
+    {id:'periodic',parentId:'signal',order:1,text:'周期与非周期',collapsed:false},
+    {id:'linear',parentId:'system',order:0,text:'线性',collapsed:false},
+    {id:'invariant',parentId:'system',order:1,text:'时不变',collapsed:false},
+    {id:'fourier',parentId:'transform',order:0,text:'傅里叶变换',collapsed:false},
+    {id:'sampling',parentId:'transform',order:1,text:'采样',collapsed:false}
+  ];
+  const rootId = 'signals';
+  const params = new URLSearchParams(location.search);
+  const state = {
+    mode: params.get('mode') === '3d' ? '3d' : '2d',
+    layout: params.get('layout') === 'down' ? 'down' : 'right',
+    selectedId: 'signal',
+    zoom: 1,
+    panX: 0,
+    panY: 0
+  };
+
+  const canvas = document.getElementById('canvas');
+  const edges = document.getElementById('edges');
+  const cards = document.getElementById('cards');
+  const zoomLabel = document.getElementById('zoom-label');
+
+  function nodeLines(text) {
+    const lines = [];
+    let line = '';
+    let units = 0;
+    for (const char of text) {
+      const weight = (char.codePointAt(0) || 0) > 255 ? 1 : 0.56;
+      if (char === '\n' || units + weight > 10) {
+        lines.push(line); line = ''; units = 0;
+      }
+      if (char !== '\n') { line += char; units += weight; }
+    }
+    if (line.length > 0 || lines.length === 0) lines.push(line);
+    return lines;
+  }
+  function nodeSize(text) {
+    const lines = nodeLines(text);
+    let widest = 0;
+    for (const line of lines) {
+      let units = 0;
+      for (const char of line) units += (char.codePointAt(0) || 0) > 255 ? 1 : 0.56;
+      widest = Math.max(widest, units);
+    }
+    return {w: Math.max(76, Math.ceil(widest * 15) + 30), h: Math.max(50, lines.length * 22 + 28), lines};
+  }
+  function layoutMap(doc) {
+    const children = new Map();
+    const sizes = new Map();
+    for (const node of doc.nodes) {
+      if (!children.has(node.parentId)) children.set(node.parentId, []);
+      children.get(node.parentId).push(node);
+      sizes.set(node.id, nodeSize(node.text));
+    }
+    for (const list of children.values()) list.sort((a, b) => a.order - b.order);
+    const root = doc.nodes.find(node => node.id === doc.rootId);
+    const counts = new Map();
+    const count = id => {
+      if (counts.has(id)) return counts.get(id);
+      counts.set(id, 0);
+      let total = 0;
+      for (const child of (children.get(id) || [])) total += 1 + count(child.id);
+      counts.set(id, total);
+      return total;
+    };
+    for (const id of children.keys()) count(id);
+    const scene = {nodes: [], width: 0, height: 0};
+    const spans = new Map();
+    const down = doc.layout === 'down';
+    const measure = (node, depth) => {
+      const box = sizes.get(node.id);
+      const list = node.collapsed || depth >= 8 ? [] : (children.get(node.id) || []);
+      let total = 0;
+      for (const child of list) total += measure(child, depth + 1) + 16;
+      const span = Math.max(down ? box.w : box.h, total - 16);
+      spans.set(node.id, span);
+      return span;
+    };
+    const place = (node, depth, axis, cross) => {
+      const size = sizes.get(node.id);
+      const span = spans.get(node.id);
+      const all = children.get(node.id) || [];
+      const box = {
+        id: node.id, parentId: node.parentId, text: node.text, depth,
+        x: down ? cross + (span - size.w) / 2 : axis,
+        y: down ? axis : cross + (span - size.h) / 2,
+        w: size.w, h: size.h, lines: size.lines, collapsed: node.collapsed,
+        childCount: all.length, hiddenCount: node.collapsed ? (counts.get(node.id) || 0) : 0
+      };
+      scene.nodes.push(box);
+      scene.width = Math.max(scene.width, box.x + box.w + 16);
+      scene.height = Math.max(scene.height, box.y + box.h + 16);
+      if (node.collapsed || depth >= 8) return;
+      let cursor = cross;
+      for (const child of all) {
+        place(child, depth + 1, axis + (down ? size.h + 40 : size.w + 30), cursor);
+        cursor += spans.get(child.id) + 16;
+      }
+    };
+    measure(root, 0);
+    place(root, 0, 16, 16);
+    return scene;
+  }
+
+  function project(scene, node) {
+    const depth = node.depth;
+    const scale = Math.max(0.5, 1 - depth * 0.06);
+    return {
+      x: (node.x + node.w / 2 - scene.width / 2) + depth * 20,
+      y: (node.y + node.h / 2 - scene.height / 2) + depth * 24,
+      w: node.w * scale, h: node.h * scale, scale, z: depth
+    };
+  }
+  function boundsOf(scene) {
+    if (state.mode === '2d') return {minX: 0, minY: 0, w: scene.width, h: scene.height};
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const node of scene.nodes) {
+      const item = project(scene, node);
+      minX = Math.min(minX, item.x - item.w / 2);
+      minY = Math.min(minY, item.y - item.h / 2);
+      maxX = Math.max(maxX, item.x + item.w / 2);
+      maxY = Math.max(maxY, item.y + item.h / 2);
+    }
+    return {minX, minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY)};
+  }
+  function fit(scene) {
+    const rect = canvas.getBoundingClientRect();
+    const b = boundsOf(scene);
+    state.zoom = Math.max(0.000001, Math.min(1.25, Math.min(rect.width / b.w, rect.height / b.h) * 0.92));
+    state.panX = (rect.width - b.w * state.zoom) / 2 - b.minX * state.zoom;
+    state.panY = (rect.height - b.h * state.zoom) / 2 - b.minY * state.zoom;
+  }
+  function selectedPath() {
+    const byId = new Map(nodes.map(node => [node.id, node]));
+    const path = new Set();
+    let current = byId.get(state.selectedId);
+    for (let depth = 0; current && depth < 9; depth++) {
+      path.add(current.id);
+      if (!current.parentId) break;
+      current = byId.get(current.parentId);
+    }
+    return path;
+  }
+  function screenItem(scene, node) {
+    if (state.mode === '3d') {
+      const item = project(scene, node);
+      return {x: item.x * state.zoom + state.panX, y: item.y * state.zoom + state.panY,
+        w: item.w * state.zoom, h: item.h * state.zoom, scale: item.scale, z: item.z};
+    }
+    return {x: (node.x + node.w / 2) * state.zoom + state.panX, y: (node.y + node.h / 2) * state.zoom + state.panY,
+      w: node.w * state.zoom, h: node.h * state.zoom, scale: 1, z: node.depth};
+  }
+  function colorShade(hex, factor) {
+    const value = parseInt(hex.slice(1), 16);
+    const r = Math.min(255, Math.round(((value >> 16) & 255) * factor));
+    const g = Math.min(255, Math.round(((value >> 8) & 255) * factor));
+    const b = Math.min(255, Math.round((value & 255) * factor));
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  }
+
+  function render() {
+    const rect = canvas.getBoundingClientRect();
+    const scene = layoutMap({nodes, rootId, layout: state.layout});
+    if (!state.initialized) { fit(scene); state.initialized = true; }
+    const path = selectedPath();
+    const byId = new Map(scene.nodes.map(node => [node.id, node]));
+    edges.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+    edges.setAttribute('preserveAspectRatio', 'none');
+    let edgeMarkup = '';
+    for (const node of scene.nodes) {
+      const parent = byId.get(node.parentId);
+      if (!parent) continue;
+      const a = screenItem(scene, parent);
+      const b = screenItem(scene, node);
+      const onBranch = path.has(node.id) && path.has(parent.id);
+      const down = state.layout === 'down';
+      let d;
+      if (down) {
+        const sx = a.x, sy = a.y + a.h / 2, ex = b.x, ey = b.y - b.h / 2, mid = (sy + ey) / 2;
+        d = `M${sx} ${sy} C${sx} ${mid} ${ex} ${mid} ${ex} ${ey}`;
+      } else {
+        const sx = a.x + a.w / 2, sy = a.y, ex = b.x - b.w / 2, ey = b.y, mid = (sx + ex) / 2;
+        d = `M${sx} ${sy} C${mid} ${sy} ${mid} ${ey} ${ex} ${ey}`;
+      }
+      const width = (onBranch ? 2.6 : 1.8) * state.zoom * ((a.scale + b.scale) / 2);
+      edgeMarkup += `<path d="${d}" fill="none" stroke="${onBranch ? '#5354C7' : '#81849B'}" stroke-width="${width}" stroke-linecap="round"/>`;
+    }
+    edges.innerHTML = edgeMarkup;
+
+    const ordered = scene.nodes.slice().sort((a, b) => {
+      if (state.mode === '2d') return a.depth - b.depth;
+      return b.depth - a.depth;
+    });
+    cards.innerHTML = '';
+    for (const node of ordered) {
+      const item = screenItem(scene, node);
+      const selected = node.id === state.selectedId;
+      const onBranch = path.has(node.id);
+      const isRoot = node.depth === 0;
+      const fill = isRoot ? '#5354C7' : selected ? '#ECECFA' : '#FFFFFF';
+      const stroke = isRoot ? (selected ? '#FFFFFF' : '#5354C7') : selected ? '#5354C7' : onBranch ? '#5354C7' : node.depth === 1 ? '#5354C7' : '#DADAE2';
+      const strokeWidth = (isRoot ? (selected ? 2.5 : 1) : selected ? 2.5 : onBranch ? 1.8 : node.depth === 1 ? 1.2 : 1) * state.zoom * item.scale;
+      const radius = 14 * state.zoom * item.scale;
+      const lift = state.mode === '3d' ? 10 * state.zoom * item.scale : 0;
+      const zIndex = 1000 - node.depth * 10 + (selected ? 500 : 0);
+
+      if (state.mode === '3d') {
+        const shadow = document.createElement('div');
+        shadow.className = 'card';
+        shadow.style.cssText = `left:${item.x - item.w / 2 + 5 * item.scale * state.zoom}px;top:${item.y - item.h / 2 + lift + 5 * item.scale * state.zoom}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:rgba(16,17,20,.14);z-index:${zIndex};pointer-events:none`;
+        cards.appendChild(shadow);
+        const side = document.createElement('div');
+        side.className = 'card';
+        side.style.cssText = `left:${item.x - item.w / 2 + lift * .55}px;top:${item.y - item.h / 2 + lift}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${colorShade(fill, 0.62)};z-index:${zIndex + 1};pointer-events:none`;
+        cards.appendChild(side);
+      }
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.node = node.id;
+      card.style.cssText = `left:${item.x - item.w / 2}px;top:${item.y - item.h / 2}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${fill};border:${strokeWidth}px solid ${stroke};color:${isRoot ? '#FFFFFF' : '#1D1D1F'};font-size:${Math.max(7, 15 * state.zoom * item.scale)}px;font-weight:${isRoot ? 700 : selected ? 500 : 400};z-index:${zIndex + 2}`;
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = node.lines.join('\n');
+      label.style.whiteSpace = 'pre-line';
+      card.appendChild(label);
+      card.addEventListener('click', event => {
+        event.stopPropagation();
+        state.selectedId = node.id;
+        render();
+      });
+      cards.appendChild(card);
+      if (node.childCount > 0) {
+        const badge = document.createElement('div');
+        badge.className = 'badge';
+        badge.textContent = node.collapsed ? (node.hiddenCount > 99 ? '+99' : '+' + node.hiddenCount) : '−';
+        badge.style.cssText = `left:${item.x + item.w / 2 - 11 * item.scale * state.zoom}px;top:${item.y - 11 * item.scale * state.zoom}px;width:${22 * item.scale * state.zoom}px;height:${22 * item.scale * state.zoom}px;font-size:${Math.max(6, (node.collapsed ? 10 : 14) * state.zoom * item.scale)}px;z-index:${zIndex + 3}`;
+        badge.addEventListener('click', event => {
+          event.stopPropagation();
+          const target = nodes.find(n => n.id === node.id);
+          target.collapsed = !target.collapsed;
+          render();
+        });
+        cards.appendChild(badge);
+      }
+    }
+
+    const selectedNode = nodes.find(node => node.id === state.selectedId) || nodes[0];
+    const whole = selectedNode.id === rootId;
+    document.getElementById('selected-label').textContent = selectedNode.text;
+    document.getElementById('scope-label').textContent = whole ? '整张导图' : '当前分支';
+    document.getElementById('status').textContent = '已保存 · ' + scene.nodes.length + ' 个节点';
+    zoomLabel.textContent = state.zoom > 0 ? (Math.round(state.zoom * 1000) / 10) + '%' : '—';
+    document.getElementById('meta-mode').textContent = state.mode === '3d' ? '3D' : '2D';
+    document.getElementById('meta-layout').textContent = state.layout === 'down' ? '向下' : '向右';
+    document.getElementById('meta-zoom').textContent = zoomLabel.textContent;
+    document.getElementById('meta-selected').textContent = selectedNode.text;
+    document.getElementById('mode-btn').textContent = state.mode === '3d' ? '3D' : '2D';
+    document.getElementById('mode-btn').classList.toggle('active', state.mode === '3d');
+    document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
+    document.querySelectorAll('[data-layout]').forEach(button => button.classList.toggle('active', button.dataset.layout === state.layout));
+    document.getElementById('collapse-demo').textContent = nodes.find(node => node.id === 'system').collapsed ? '展开「系统性质」' : '折叠「系统性质」';
+    state.scene = scene;
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    state.initialized = false;
+    state.selectedId = state.selectedId || 'signal';
+    history.replaceState(null, '', '?mode=' + mode + '&layout=' + state.layout);
+    render();
+  }
+  function setLayout(layout) {
+    state.layout = layout;
+    state.initialized = false;
+    history.replaceState(null, '', '?mode=' + state.mode + '&layout=' + layout);
+    render();
+  }
+  function zoomAt(factor, cx, cy) {
+    const next = Math.min(3, Math.max(0.000001, state.zoom * factor));
+    const ratio = next / state.zoom;
+    state.panX = cx - (cx - state.panX) * ratio;
+    state.panY = cy - (cy - state.panY) * ratio;
+    state.zoom = next;
+    render();
+  }
+
+  document.getElementById('mode-btn').addEventListener('click', () => setMode(state.mode === '3d' ? '2d' : '3d'));
+  document.getElementById('zoom-in').addEventListener('click', () => zoomAt(1.2, canvas.clientWidth / 2, canvas.clientHeight / 2));
+  document.getElementById('zoom-out').addEventListener('click', () => zoomAt(1 / 1.2, canvas.clientWidth / 2, canvas.clientHeight / 2));
+  document.getElementById('fit').addEventListener('click', () => { state.initialized = false; render(); });
+  document.getElementById('fit2').addEventListener('click', () => { state.initialized = false; render(); });
+  document.getElementById('collapse-demo').addEventListener('click', () => {
+    const target = nodes.find(node => node.id === 'system');
+    target.collapsed = !target.collapsed;
+    render();
+  });
+  document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+  document.querySelectorAll('[data-layout]').forEach(button => button.addEventListener('click', () => setLayout(button.dataset.layout)));
+
+  let drag = null;
+  canvas.addEventListener('pointerdown', event => {
+    if (event.target.closest('.card') || event.target.closest('.badge') || event.target.closest('.zoom')) return;
+    drag = {x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY};
+    canvas.setPointerCapture(event.pointerId);
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (!drag) return;
+    state.panX = drag.panX + event.clientX - drag.x;
+    state.panY = drag.panY + event.clientY - drag.y;
+    render();
+  });
+  const endDrag = () => { drag = null; canvas.classList.remove('dragging'); };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    zoomAt(event.deltaY > 0 ? 0.92 : 1.08, event.clientX - rect.left, event.clientY - rect.top);
+  }, {passive: false});
+  window.addEventListener('resize', () => { state.initialized = false; render(); });
+
+  render();
+})();
+</script>
+</body>
+</html>
