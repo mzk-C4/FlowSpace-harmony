@@ -406,17 +406,20 @@
     state.scene = scene;
   }
 
+  function updateUrl() {
+    try { history.replaceState(null, '', '?mode=' + state.mode + '&layout=' + state.layout); } catch (_) {}
+  }
   function setMode(mode) {
     state.mode = mode;
     state.initialized = false;
     state.selectedId = state.selectedId || 'signal';
-    history.replaceState(null, '', '?mode=' + mode + '&layout=' + state.layout);
+    updateUrl();
     render();
   }
   function setLayout(layout) {
     state.layout = layout;
     state.initialized = false;
-    history.replaceState(null, '', '?mode=' + state.mode + '&layout=' + layout);
+    updateUrl();
     render();
   }
   function zoomAt(factor, cx, cy) {
