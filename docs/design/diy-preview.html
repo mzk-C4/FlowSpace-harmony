@@ -60,9 +60,6 @@
   .controls button{height:44px;border:1px solid var(--border);background:var(--surface);color:var(--text);
     border-radius:12px;padding:0 14px;font-size:13px;cursor:pointer}
   .controls button.active{background:var(--accent);border-color:var(--accent);color:#fff}
-  .slider-row{display:grid;grid-template-columns:64px 1fr 44px;align-items:center;gap:8px;font-size:12px;color:#555560}
-  .slider-row input{width:100%;accent-color:var(--accent)}
-  .slider-row b{text-align:right;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
   .meta{font-size:12px;line-height:1.9;color:#666671;background:var(--surface);border:1px solid var(--border);
     border-radius:14px;padding:12px 14px;margin-top:14px}
   .meta b{color:var(--text);font-weight:600}
@@ -116,7 +113,7 @@
 
   <aside class="side">
     <h2>2D / 3D 画布预览</h2>
-    <p>2D 单指拖动平移；3D 单指拖动旋转视角，滚轮缩放。点击节点选中，点击右侧圆点折叠/展开分支。</p>
+    <p>2D 单指拖动平移；3D 单指拖动像转球一样自由旋转，滚轮缩放。点击节点选中，点击右侧圆点折叠/展开分支。</p>
     <div class="controls">
       <div class="row">
         <button data-mode="2d" class="active">2D</button>
@@ -128,28 +125,17 @@
       </div>
       <div class="row">
         <button id="fit2">适应画布</button>
-        <button id="reset-view">复位视角</button>
+        <button id="reset-view">复位球体</button>
         <button id="collapse-demo">折叠「系统性质」</button>
-      </div>
-      <div class="slider-row">
-        <label for="yaw-range">水平旋转</label>
-        <input id="yaw-range" type="range" min="-180" max="180" step="1" value="-20">
-        <b id="yaw-value">-20°</b>
-      </div>
-      <div class="slider-row">
-        <label for="pitch-range">俯仰</label>
-        <input id="pitch-range" type="range" min="-60" max="60" step="1" value="20">
-        <b id="pitch-value">20°</b>
       </div>
     </div>
     <div class="meta">
       <div>视图：<b id="meta-mode">2D</b></div>
       <div>布局：<b id="meta-layout">向右</b></div>
-      <div>视角：<b id="meta-rotation">—</b></div>
       <div>缩放：<b id="meta-zoom">—</b></div>
       <div>选中：<b id="meta-selected">信号表征</b></div>
     </div>
-    <p class="notice">2D 使用平面树布局；3D 使用透视相机：卡片按 yaw/pitch 旋转、按相机深度缩放并保留阴影与厚度面。卡片保持正面朝向（billboard），导出仍为完整 2D 树。此页面不连接模型，不替代原生设备验收。</p>
+    <p class="notice">2D 使用平面树布局；3D 使用球形轨迹球旋转：拖动方向决定旋转轴，没有俯仰上限，镜头按透视缩放并保留阴影与厚度面。卡片保持正面朝向（billboard），导出仍为完整 2D 树。此页面不连接模型，不替代原生设备验收。</p>
   </aside>
 </div>
 
@@ -170,9 +156,12 @@
   const rootId = 'signals';
   const DEFAULT_YAW = -0.35;
   const DEFAULT_PITCH = 0.35;
+  const ROTATE_PER_PIXEL = 0.006;
   const params = new URLSearchParams(location.search);
   const yawParam = Number(params.get('yaw'));
   const pitchParam = Number(params.get('pitch'));
+  const initialYaw = Number.isFinite(yawParam) && params.has('yaw') ? yawParam * Math.PI / 180 : DEFAULT_YAW;
+  const initialPitch = Number.isFinite(pitchParam) && params.has('pitch') ? pitchParam * Math.PI / 180 : DEFAULT_PITCH;
   const state = {
     mode: params.get('mode') === '3d' ? '3d' : '2d',
     layout: params.get('layout') === 'down' ? 'down' : 'right',
@@ -180,8 +169,7 @@
     zoom: 1,
     panX: 0,
     panY: 0,
-    yaw: Number.isFinite(yawParam) && params.has('yaw') ? yawParam * Math.PI / 180 : DEFAULT_YAW,
-    pitch: Number.isFinite(pitchParam) && params.has('pitch') ? pitchParam * Math.PI / 180 : DEFAULT_PITCH
+    rotation: orientationMatrix(initialYaw, initialPitch)
   };
   if (params.get('embed') === '1') document.body.classList.add('embed');
 
@@ -272,12 +260,35 @@
     return scene;
   }
 
+  function multiplyMatrix(a, b) {
+    const result = new Array(9).fill(0);
+    for (let row = 0; row < 3; row++) {
+      for (let column = 0; column < 3; column++) {
+        result[row * 3 + column] = a[row * 3] * b[column] +
+          a[row * 3 + 1] * b[3 + column] + a[row * 3 + 2] * b[6 + column];
+      }
+    }
+    return result;
+  }
+  function axisAngleMatrix(axisX, axisY, axisZ, angle) {
+    const length = Math.sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ);
+    if (length < 1e-9) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const x = axisX / length, y = axisY / length, z = axisZ / length;
+    const c = Math.cos(angle), s = Math.sin(angle), t = 1 - c;
+    return [
+      t * x * x + c, t * x * y - s * z, t * x * z + s * y,
+      t * x * y + s * z, t * y * y + c, t * y * z - s * x,
+      t * x * z - s * y, t * y * z + s * x, t * z * z + c
+    ];
+  }
+  function orientationMatrix(yaw, pitch) {
+    return multiplyMatrix(axisAngleMatrix(1, 0, 0, pitch), axisAngleMatrix(0, 1, 0, yaw));
+  }
+  function defaultOrientation() { return orientationMatrix(DEFAULT_YAW, DEFAULT_PITCH); }
   function camera(scene) {
     const size = Math.max(1, scene.width, scene.height);
     return {
-      cx: scene.width / 2, cy: scene.height / 2,
-      cosYaw: Math.cos(state.yaw), sinYaw: Math.sin(state.yaw),
-      cosPitch: Math.cos(state.pitch), sinPitch: Math.sin(state.pitch),
+      cx: scene.width / 2, cy: scene.height / 2, rotation: state.rotation,
       distance: Math.max(2200, size * 2 + 1000), depthStep: 70
     };
   }
@@ -287,12 +298,12 @@
     const x = (node.x + node.w / 2 - view.cx) * fan;
     const y = (node.y + node.h / 2 - view.cy) * fan;
     const z = node.depth * view.depthStep;
-    const x1 = x * view.cosYaw + z * view.sinYaw;
-    const z1 = -x * view.sinYaw + z * view.cosYaw;
-    const y1 = y * view.cosPitch - z1 * view.sinPitch;
-    const z2 = y * view.sinPitch + z1 * view.cosPitch;
-    const scale = Math.max(0.2, Math.min(2.5, view.distance / (view.distance + z2)));
-    return {x: x1 * scale, y: y1 * scale, w: node.w * scale, h: node.h * scale, scale, z: z2};
+    const m = view.rotation;
+    const rx = m[0] * x + m[1] * y + m[2] * z;
+    const ry = m[3] * x + m[4] * y + m[5] * z;
+    const rz = m[6] * x + m[7] * y + m[8] * z;
+    const scale = Math.max(0.2, Math.min(2.5, view.distance / (view.distance + rz)));
+    return {x: rx * scale, y: ry * scale, w: node.w * scale, h: node.h * scale, scale, z: rz};
   }
   function boundsOf(scene) {
     if (state.mode === '2d') return {minX: 0, minY: 0, w: scene.width, h: scene.height};
@@ -443,13 +454,6 @@
     document.getElementById('meta-layout').textContent = state.layout === 'down' ? '向下' : '向右';
     document.getElementById('meta-zoom').textContent = zoomLabel.textContent;
     document.getElementById('meta-selected').textContent = selectedNode.text;
-    const yawDeg = Math.round(state.yaw * 180 / Math.PI);
-    const pitchDeg = Math.round(state.pitch * 180 / Math.PI);
-    document.getElementById('meta-rotation').textContent = state.mode === '3d' ? `${yawDeg}° / ${pitchDeg}°` : '2D 无旋转';
-    document.getElementById('yaw-range').value = String(yawDeg);
-    document.getElementById('pitch-range').value = String(pitchDeg);
-    document.getElementById('yaw-value').textContent = yawDeg + '°';
-    document.getElementById('pitch-value').textContent = pitchDeg + '°';
     document.getElementById('mode-btn').textContent = state.mode === '3d' ? '3D' : '2D';
     document.getElementById('mode-btn').classList.toggle('active', state.mode === '3d');
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
@@ -463,8 +467,7 @@
   }
   function setMode(mode) {
     state.mode = mode;
-    state.yaw = DEFAULT_YAW;
-    state.pitch = DEFAULT_PITCH;
+    state.rotation = defaultOrientation();
     state.initialized = false;
     state.selectedId = state.selectedId || 'signal';
     updateUrl();
@@ -491,17 +494,8 @@
   document.getElementById('fit').addEventListener('click', () => { state.initialized = false; render(); });
   document.getElementById('fit2').addEventListener('click', () => { state.initialized = false; render(); });
   document.getElementById('reset-view').addEventListener('click', () => {
-    state.yaw = DEFAULT_YAW;
-    state.pitch = DEFAULT_PITCH;
+    state.rotation = defaultOrientation();
     state.initialized = false;
-    render();
-  });
-  document.getElementById('yaw-range').addEventListener('input', event => {
-    state.yaw = Number(event.target.value) * Math.PI / 180;
-    render();
-  });
-  document.getElementById('pitch-range').addEventListener('input', event => {
-    state.pitch = Math.max(-1, Math.min(1, Number(event.target.value) * Math.PI / 180));
     render();
   });
   document.getElementById('collapse-demo').addEventListener('click', () => {
@@ -516,7 +510,7 @@
   canvas.addEventListener('pointerdown', event => {
     if (event.target.closest('.card') || event.target.closest('.badge') || event.target.closest('.zoom')) return;
     drag = state.mode === '3d'
-      ? {kind: 'rotate', x: event.clientX, y: event.clientY, yaw: state.yaw, pitch: state.pitch}
+      ? {kind: 'rotate', x: event.clientX, y: event.clientY, rotation: state.rotation.slice()}
       : {kind: 'pan', x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY};
     canvas.setPointerCapture(event.pointerId);
     canvas.classList.add('dragging');
@@ -524,8 +518,12 @@
   canvas.addEventListener('pointermove', event => {
     if (!drag) return;
     if (drag.kind === 'rotate') {
-      state.yaw = drag.yaw + (event.clientX - drag.x) * 0.008;
-      state.pitch = Math.max(-1, Math.min(1, drag.pitch + (event.clientY - drag.y) * 0.006));
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      state.rotation = length < 0.001
+        ? drag.rotation.slice()
+        : multiplyMatrix(axisAngleMatrix(dy, dx, 0, length * ROTATE_PER_PIXEL), drag.rotation);
     } else {
       state.panX = drag.panX + event.clientX - drag.x;
       state.panY = drag.panY + event.clientY - drag.y;

@@ -360,12 +360,11 @@ function projectedFits(c) {
   }
 }
 
-test('3D projection recedes deeper levels at zero tilt', () => {
+test('3D projection recedes deeper levels at the identity orientation', () => {
   const c = new MindMapCanvas();
   c.document = document(20);
   c.viewMode = '3d';
-  c.yaw = 0;
-  c.pitch = 0;
+  c.setOrientation(0, 0);
   c.rebuildScene();
   const p = c.projection();
   const root = c.projectNode(c.scene.nodes[0], p);
@@ -375,23 +374,28 @@ test('3D projection recedes deeper levels at zero tilt', () => {
   assert.ok(root.scale <= 1.4 && leaf.scale > 0.35, 'projection should stay legible');
 });
 
-test('3D yaw and pitch rotate the scene in perspective', () => {
+test('trackball drag rotates the scene on any axis and keeps the projection finite', () => {
   const c = new MindMapCanvas();
   c.document = document(20);
   c.viewMode = '3d';
-  c.yaw = 0;
-  c.pitch = 0;
+  c.setOrientation(0, 0);
   c.rebuildScene();
   const node = c.scene.nodes.find(item => item.depth === 1);
   const flat = c.projectNode(node, c.projection());
-  c.yaw = 0.6;
-  const yawed = c.projectNode(node, c.projection());
-  assert.notEqual(yawed.x, flat.x, 'yaw should move the projected card horizontally');
-  c.pitch = 0.7;
-  const pitched = c.projectNode(node, c.projection());
-  assert.notEqual(pitched.y, yawed.y, 'pitch should move the projected card vertically');
-  assert.notEqual(pitched.scale, flat.scale, 'rotation should change perspective scale');
-  assert.ok(Number.isFinite(pitched.x) && Number.isFinite(pitched.y) && pitched.scale > 0.2);
+  const start = c.rotation.slice();
+  c.beginRotate();
+  c.updateRotate(100, 0);
+  const horizontal = c.rotation.slice();
+  assert.notDeepEqual(horizontal, start, 'horizontal drag should change orientation');
+  c.beginRotate();
+  c.updateRotate(0, 100);
+  const vertical = c.rotation.slice();
+  assert.notDeepEqual(vertical, horizontal, 'vertical drag should change orientation differently');
+  const rotated = c.projectNode(node, c.projection());
+  assert.notEqual(rotated.x, flat.x);
+  assert.notEqual(rotated.y, flat.y);
+  assert.notEqual(rotated.scale, flat.scale);
+  assert.ok(Number.isFinite(rotated.x) && Number.isFinite(rotated.y) && rotated.scale > 0.2);
 });
 
 for (const width of [320, 360, 480]) {
@@ -400,13 +404,13 @@ for (const width of [320, 360, 480]) {
       { yaw: -0.35, pitch: 0.35 },
       { yaw: 1.1, pitch: 0.7 },
       { yaw: -1.2, pitch: -0.6 },
+      { yaw: 2.4, pitch: 1.4 },
     ];
     for (const count of [200, 500]) for (const orientation of ['right', 'down']) for (const angle of angles) {
       const c = new MindMapCanvas();
       c.document = document(count, orientation);
       c.viewMode = '3d';
-      c.yaw = angle.yaw;
-      c.pitch = angle.pitch;
+      c.setOrientation(angle.yaw, angle.pitch);
       c.rebuildScene();
       c.viewportWidth = width;
       c.viewportHeight = 440;
@@ -416,12 +420,11 @@ for (const width of [320, 360, 480]) {
   });
 }
 
-test('3D selectAt chooses the projected card after rotation and ignores empty space', () => {
+test('3D selectAt chooses the projected card after trackball rotation and ignores empty space', () => {
   const c = new MindMapCanvas();
   c.document = document(200);
   c.viewMode = '3d';
-  c.yaw = 0.75;
-  c.pitch = 0.5;
+  c.setOrientation(0.75, 0.5);
   c.rebuildScene();
   c.viewportWidth = 360;
   c.viewportHeight = 440;
@@ -460,32 +463,27 @@ test('3D default rotation keeps the ten-node example cards from intersecting', (
   }
 });
 
-test('one-finger 3D rotation changes yaw/pitch, clamps pitch and reset restores the fitted view', () => {
+test('trackball rotation stays finite at extreme drags, cancels cleanly and reset restores the fitted default', () => {
   const c = controller(document(200));
   c.viewMode = '3d';
   c.refreshViewMode();
-  const yaw0 = c.yaw;
-  const pitch0 = c.pitch;
+  const defaultRotation = c.rotation.slice();
   c.beginRotate();
   c.updateRotate(120, -60);
-  assert.notEqual(c.yaw, yaw0);
-  assert.ok(c.pitch < pitch0);
+  assert.notDeepEqual(c.rotation, defaultRotation);
   c.beginRotate();
   c.updateRotate(0, 100000);
-  assert.ok(c.pitch <= 1.0);
+  assert.ok(c.rotation.every(Number.isFinite));
   c.beginRotate();
-  c.updateRotate(0, -100000);
-  assert.ok(c.pitch >= -1.0);
+  c.updateRotate(100000, 100000);
+  assert.ok(c.rotation.every(Number.isFinite));
   c.beginRotate();
-  const savedYaw = c.yaw;
-  const savedPitch = c.pitch;
+  const saved = c.rotation.slice();
   c.updateRotate(50, 50);
   c.cancelRotate();
-  assert.equal(c.yaw, savedYaw);
-  assert.equal(c.pitch, savedPitch);
+  assert.deepEqual(c.rotation, saved);
   c.resetView();
-  assert.equal(c.yaw, yaw0);
-  assert.equal(c.pitch, pitch0);
+  assert.deepEqual(c.rotation, defaultRotation);
   assert.equal(c.needsFit, false);
   projectedFits(c);
 });

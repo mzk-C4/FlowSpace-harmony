@@ -19,19 +19,49 @@ interface CanvasPalette {
 interface Projection {
   cx: number;
   cy: number;
-  cosYaw: number;
-  sinYaw: number;
-  cosPitch: number;
-  sinPitch: number;
+  rotation: number[];
   distance: number;
   depthStep: number;
 }
 
 const DEFAULT_YAW: number = -0.35;
 const DEFAULT_PITCH: number = 0.35;
-const MAX_PITCH: number = 1.0;
-const YAW_PER_PIXEL: number = 0.008;
-const PITCH_PER_PIXEL: number = 0.006;
+const ROTATE_PER_PIXEL: number = 0.006;
+
+function multiplyMatrix(a: number[], b: number[]): number[] {
+  const result: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (let row: number = 0; row < 3; row++) {
+    for (let column: number = 0; column < 3; column++) {
+      result[row * 3 + column] = a[row * 3] * b[column] +
+        a[row * 3 + 1] * b[3 + column] + a[row * 3 + 2] * b[6 + column];
+    }
+  }
+  return result;
+}
+
+function axisAngleMatrix(axisX: number, axisY: number, axisZ: number, angle: number): number[] {
+  const length: number = Math.sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ);
+  if (length < 1e-9) { return [1, 0, 0, 0, 1, 0, 0, 0, 1]; }
+  const x: number = axisX / length;
+  const y: number = axisY / length;
+  const z: number = axisZ / length;
+  const c: number = Math.cos(angle);
+  const s: number = Math.sin(angle);
+  const t: number = 1 - c;
+  return [
+    t * x * x + c, t * x * y - s * z, t * x * z + s * y,
+    t * x * y + s * z, t * y * y + c, t * y * z - s * x,
+    t * x * z - s * y, t * y * z + s * x, t * z * z + c
+  ];
+}
+
+function orientationMatrix(yaw: number, pitch: number): number[] {
+  return multiplyMatrix(axisAngleMatrix(1, 0, 0, pitch), axisAngleMatrix(0, 1, 0, yaw));
+}
+
+function defaultOrientation(): number[] {
+  return orientationMatrix(DEFAULT_YAW, DEFAULT_PITCH);
+}
 
 interface ProjectedNode {
   node: CanvasNode;
@@ -71,10 +101,8 @@ export struct MindMapCanvas {
   private zoom: number = 1;
   private panX: number = 0;
   private panY: number = 0;
-  private yaw: number = DEFAULT_YAW;
-  private pitch: number = DEFAULT_PITCH;
-  private rotateStartYaw: number = DEFAULT_YAW;
-  private rotateStartPitch: number = DEFAULT_PITCH;
+  private rotation: number[] = defaultOrientation();
+  private rotateStart: number[] = defaultOrientation();
   private startX: number = 0;
   private startY: number = 0;
   private startZoom: number = 1;
@@ -135,12 +163,11 @@ export struct MindMapCanvas {
   }
 
   // A real perspective camera orbiting the tree. Cards stay upright as
-  // billboards; their anchor point and size follow yaw, pitch and depth.
+  // billboards; their anchor point and size follow the trackball orientation
+  // and depth.
   private projection(): Projection {
     const size: number = Math.max(1, this.scene.width, this.scene.height);
-    return { cx: this.scene.width / 2, cy: this.scene.height / 2,
-      cosYaw: Math.cos(this.yaw), sinYaw: Math.sin(this.yaw),
-      cosPitch: Math.cos(this.pitch), sinPitch: Math.sin(this.pitch),
+    return { cx: this.scene.width / 2, cy: this.scene.height / 2, rotation: this.rotation,
       distance: Math.max(2200, size * 2 + 1000), depthStep: 70 };
   }
 
@@ -151,13 +178,13 @@ export struct MindMapCanvas {
     const x: number = (node.x + node.width / 2 - projection.cx) * fan;
     const y: number = (node.y + node.height / 2 - projection.cy) * fan;
     const z: number = node.depth * projection.depthStep;
-    const x1: number = x * projection.cosYaw + z * projection.sinYaw;
-    const z1: number = -x * projection.sinYaw + z * projection.cosYaw;
-    const y1: number = y * projection.cosPitch - z1 * projection.sinPitch;
-    const z2: number = y * projection.sinPitch + z1 * projection.cosPitch;
-    const scale: number = Math.max(0.2, Math.min(2.5, projection.distance / (projection.distance + z2)));
-    return { node: node, x: x1 * scale, y: y1 * scale, width: node.width * scale,
-      height: node.height * scale, scale: scale, z: z2 };
+    const m: number[] = projection.rotation;
+    const rx: number = m[0] * x + m[1] * y + m[2] * z;
+    const ry: number = m[3] * x + m[4] * y + m[5] * z;
+    const rz: number = m[6] * x + m[7] * y + m[8] * z;
+    const scale: number = Math.max(0.2, Math.min(2.5, projection.distance / (projection.distance + rz)));
+    return { node: node, x: rx * scale, y: ry * scale, width: node.width * scale,
+      height: node.height * scale, scale: scale, z: rz };
   }
 
   private projectedBounds(): { minX: number; minY: number; width: number; height: number } {
@@ -253,8 +280,11 @@ export struct MindMapCanvas {
   }
 
   private resetRotation(): void {
-    this.yaw = DEFAULT_YAW;
-    this.pitch = DEFAULT_PITCH;
+    this.rotation = defaultOrientation();
+  }
+
+  private setOrientation(yaw: number, pitch: number): void {
+    this.rotation = orientationMatrix(yaw, pitch);
   }
 
   private resetView(): void {
@@ -265,19 +295,24 @@ export struct MindMapCanvas {
   }
 
   private beginRotate(): void {
-    this.rotateStartYaw = this.yaw;
-    this.rotateStartPitch = this.pitch;
+    this.rotateStart = this.rotation.slice();
   }
 
+  // Trackball: the drag axis lives in camera space, so the map can tumble in
+  // any direction without a pitch limit or gimbal-lock pole.
   private updateRotate(dx: number, dy: number): void {
-    this.yaw = this.rotateStartYaw + dx * YAW_PER_PIXEL;
-    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.rotateStartPitch + dy * PITCH_PER_PIXEL));
+    const length: number = Math.sqrt(dx * dx + dy * dy);
+    if (length < 0.001) {
+      this.rotation = this.rotateStart.slice();
+    } else {
+      const delta: number[] = axisAngleMatrix(dy, dx, 0, length * ROTATE_PER_PIXEL);
+      this.rotation = multiplyMatrix(delta, this.rotateStart);
+    }
     this.paint();
   }
 
   private cancelRotate(): void {
-    this.yaw = this.rotateStartYaw;
-    this.pitch = this.rotateStartPitch;
+    this.rotation = this.rotateStart.slice();
     this.paint();
   }
 
