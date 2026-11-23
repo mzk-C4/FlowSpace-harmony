@@ -1,4 +1,3 @@
-import { appSymbol } from '../ui/Controls';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { MindMapDocument, DocumentSummary, AppSettings, GenerationRequest, GenerationCandidate, ChatMessage,
   HealthStatus, EditorAction, LearningResource, createDocument, defaultSettings, cloneDocument, newId } from '../domain/MindMap';
@@ -318,7 +317,9 @@ struct Index {
   @Builder
   tabLabel(label: string, glyph: Resource, index: number) {
     Column({ space: 3 }) {
-      appSymbol(glyph, 22, this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
+      SymbolGlyph(glyph).fontSize(22)
+        .fontColor([this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted')])
+        .accessibilityLevel('no')
       Text(label).fontSize(12).fontWeight(this.currentTab === index ? FontWeight.Medium : FontWeight.Regular)
         .fontColor(this.currentTab === index ? $r('app.color.fs_accent') : $r('app.color.fs_muted'))
     }.height('100%').width('100%').justifyContent(FlexAlign.Center)
