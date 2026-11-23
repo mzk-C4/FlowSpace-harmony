@@ -92,6 +92,10 @@
   body.embed .wrap{padding:0;gap:0;display:block}
   body.embed .side,body.embed .caption{display:none}
   body.embed .phone{border-radius:0;box-shadow:none}
+  body.phone-only{background:#ECE8E1;min-height:100vh;display:grid;place-items:center;overflow:auto}
+  body.phone-only .wrap{padding:28px;display:block}
+  body.phone-only .side,body.phone-only .caption{display:none}
+  body.phone-only .phone{box-shadow:0 30px 80px rgba(35,32,60,.22)}
 
   /* Soft depth theme */
   html[data-style=soft]{--bg:#F7F5F1;--surface:#FFFFFF;--text:#211F28;--muted:#6F6A62;--border:#E8E2D9;--grid:#E5DED2}
@@ -283,6 +287,7 @@
   };
   document.documentElement.dataset.style = state.style;
   if (params.get('embed') === '1') document.body.classList.add('embed');
+  if (params.get('phone') === '1') document.body.classList.add('phone-only');
 
   const canvas = document.getElementById('canvas');
   const edges = document.getElementById('edges');

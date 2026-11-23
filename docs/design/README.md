@@ -10,6 +10,7 @@
 - 底部自然语言入口可以输入“为每个分支补充一个工程例子”等指令，模拟 AI 候选并确认应用；[直接打开候选演示](diy-preview.html?mode=2d&style=soft&nl=demo)；
 - 切换居中起点 / 向右 / 向下布局；居中起点把根节点放在场景和轨道中心，一级分支左右展开。
 - 切换 `柔和立体 / 克制` 两种外观。
+- 只想看手机界面：打开 [phone=1 模式](diy-preview.html?mode=3d&style=soft&phone=1)，右侧控件和说明会隐藏，只保留 360×780 的手机画面；静态图见 [phone-3d.png](phone-3d.png)。
 
 ![2D 与 3D 画布对照](diy-2d-3d-preview.png)
 
