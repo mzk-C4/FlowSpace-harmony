@@ -293,3 +293,189 @@ test('tapping a branch disclosure toggles that node, tapping the label only sele
   assert.deepEqual(selected, [doc.rootId, doc.rootId]);
   assert.deepEqual(toggled, [doc.rootId]);
 });
+
+test('collapsed branch exposes how many descendants are hidden, expanded branches expose none', () => {
+  const doc = document(20, 'right');
+  doc.nodes.find(node => node.id === 'n1').collapsed = true;
+  const scene = layoutMap(doc);
+  assert.equal(scene.nodes.find(node => node.id === 'n1').hiddenCount, 4);
+  assert.equal(scene.nodes.find(node => node.id === 'n2').hiddenCount, 0);
+  doc.nodes.find(node => node.id === 'n1').collapsed = false;
+  doc.nodes[0].collapsed = true;
+  const rootOnly = layoutMap(doc);
+  assert.equal(rootOnly.nodes.length, 1);
+  assert.equal(rootOnly.nodes[0].hiddenCount, 19);
+});
+
+test('selected branch paints its whole root-to-node path in accent and distinguishes node levels', () => {
+  globalThis.$r = value => value;
+  try {
+    const c = controller(document(5));
+    c.ready = true;
+    c.context = recordingContext();
+    attachHost(c);
+    c.selectedNodeId = 'n1';
+    c.refreshSelection();
+    c.paint();
+    const strokes = c.context.calls.filter(call => call.kind === 'stroke');
+    assert.ok(strokes.some(call => call.color.toUpperCase() === '#5354C7' && call.width === 2.6),
+      'selected branch connector is accent and thicker');
+    assert.ok(strokes.some(call => call.color.toUpperCase() === '#81849B' && call.width === 1.8),
+      'sibling connector stays neutral and thinner');
+    assert.ok(strokes.some(call => call.color.toUpperCase() === '#5354C7' && call.width === 1.2),
+      'level-one sibling keeps a light accent border');
+    assert.ok(strokes.some(call => call.color.toUpperCase() === '#5354C7' && call.width === 2.5),
+      'selected node keeps the strong accent border');
+  } finally { delete globalThis.$r; }
+});
+
+test('collapsed disclosure badge shows the hidden descendant count', () => {
+  globalThis.$r = value => value;
+  try {
+    const doc = document(20, 'right');
+    doc.nodes.find(node => node.id === 'n1').collapsed = true;
+    const c = controller(doc);
+    c.ready = true;
+    c.context = recordingContext();
+    attachHost(c);
+    c.selectedNodeId = '';
+    c.paint();
+    assert.ok(c.context.calls.some(call => call.kind === 'text' && call.text === '+4'),
+      'collapsed badge should read +4 for four hidden descendants');
+    assert.ok(c.context.calls.some(call => call.kind === 'text' && call.text === '−'),
+      'expanded branch keeps the minus disclosure');
+  } finally { delete globalThis.$r; }
+});
+
+function projectedFits(c) {
+  const p = c.projection();
+  for (const node of c.scene.nodes) {
+    const item = c.projectNode(node, p);
+    const left = (item.x - item.width / 2) * c.zoom + c.panX;
+    const top = (item.y - item.height / 2) * c.zoom + c.panY;
+    const right = (item.x + item.width / 2) * c.zoom + c.panX;
+    const bottom = (item.y + item.height / 2) * c.zoom + c.panY;
+    assert.ok(left >= -1e-6 && top >= -1e-6 && right <= c.viewportWidth + 1e-6 && bottom <= c.viewportHeight + 1e-6,
+      `3D fit clips ${node.id}: ${[left, top, right, bottom]} in ${c.viewportWidth}×${c.viewportHeight}`);
+  }
+}
+
+test('3D projection recedes deeper levels and keeps the root closest', () => {
+  const c = new MindMapCanvas();
+  c.document = document(20);
+  c.viewMode = '3d';
+  c.rebuildScene();
+  const p = c.projection();
+  const root = c.projectNode(c.scene.nodes[0], p);
+  const child = c.projectNode(c.scene.nodes.find(node => node.depth === 1), p);
+  const leaf = c.projectNode(c.scene.nodes.find(node => node.depth === 2), p);
+  assert.ok(root.scale > child.scale && child.scale > leaf.scale, 'deeper cards should appear smaller');
+  assert.ok(root.scale <= 1.4 && leaf.scale > 0.35, 'projection should stay legible');
+  assert.notEqual(child.x, child.node.x + child.node.width / 2, '3D cards should shift away from their 2D center');
+});
+
+for (const width of [320, 360, 480]) {
+  test(`3D fit includes every projected 200/500 node card in ${width}vp`, () => {
+    for (const count of [200, 500]) for (const orientation of ['right', 'down']) {
+      const c = new MindMapCanvas();
+      c.document = document(count, orientation);
+      c.viewMode = '3d';
+      c.rebuildScene();
+      c.viewportWidth = width;
+      c.viewportHeight = 440;
+      c.fit();
+      projectedFits(c);
+    }
+  });
+}
+
+test('3D selectAt chooses the projected card under the finger and ignores empty space', () => {
+  const c = new MindMapCanvas();
+  c.document = document(200);
+  c.viewMode = '3d';
+  c.rebuildScene();
+  c.viewportWidth = 360;
+  c.viewportHeight = 440;
+  c.fit();
+  let selected = '';
+  c.onSelect = id => { selected = id; };
+  const p = c.projection();
+  for (const index of [0, 1, 50, 199]) {
+    const node = c.scene.nodes[index];
+    const item = c.projectNode(node, p);
+    selected = '';
+    c.selectAt(item.x * c.zoom + c.panX, item.y * c.zoom + c.panY);
+    assert.equal(selected, node.id);
+  }
+  selected = 'unchanged';
+  c.selectAt(-1e9, -1e9);
+  assert.equal(selected, 'unchanged');
+});
+
+test('3D painting draws extruded cards, shadows and the accent branch path', () => {
+  globalThis.$r = value => value;
+  try {
+    const c = controller(document(20));
+    c.viewMode = '3d';
+    c.refreshViewMode();
+    c.ready = true;
+    c.context = recordingContext();
+    attachHost(c);
+    c.selectedNodeId = 'n1';
+    c.refreshSelection();
+    c.paint();
+    const fills = c.context.calls.filter(call => call.kind === 'fill');
+    const strokes = c.context.calls.filter(call => call.kind === 'stroke');
+    assert.ok(fills.some(call => /rgba\(16,\s*17,\s*20/.test(call.color)),
+      'cards should cast a soft shadow');
+    assert.ok(fills.filter(call => call.color.toUpperCase() === '#ECECFA').length >= 2,
+      'selected top face and its extrusion should both be drawn');
+    assert.ok(strokes.some(call => call.color.toUpperCase() === '#5354C7' && call.width > 1),
+      'the selected branch should still use the accent connector');
+  } finally { delete globalThis.$r; }
+});
+
+test('3D painting draws all 500 cards without scanning the document per node', t => {
+  globalThis.$r = value => value;
+  try {
+    const c = controller(document(500));
+    c.viewMode = '3d';
+    c.refreshViewMode();
+    c.ready = true;
+    c.context = recordingContext();
+    attachHost(c);
+    c.selectedNodeId = '';
+    const start = performance.now();
+    c.paint();
+    t.diagnostic(`Node-only 3D paint method for 500 cards: ${(performance.now() - start).toFixed(3)} ms; not device FPS evidence.`);
+    assert.ok(c.context.calls.filter(call => call.kind === 'text').length >= 500);
+    assert.ok(c.context.calls.filter(call => call.kind === 'fill').length >= 500);
+  } finally { delete globalThis.$r; }
+});
+
+test('switching between 2D and 3D refits the visible map', () => {
+  const c = new MindMapCanvas();
+  c.document = document(200, 'right');
+  c.rebuildScene();
+  c.viewportWidth = 360;
+  c.viewportHeight = 440;
+  c.ready = true;
+  c.paint = () => {};
+  c.fit();
+  c.setZoom(0.5);
+  c.panX = -300;
+  c.viewMode = '3d';
+  c.refreshViewMode();
+  assert.equal(c.needsFit, false);
+  projectedFits(c);
+  c.viewMode = '2d';
+  c.refreshViewMode();
+  for (const node of c.scene.nodes) {
+    const left = node.x * c.zoom + c.panX;
+    const top = node.y * c.zoom + c.panY;
+    const right = (node.x + node.width) * c.zoom + c.panX;
+    const bottom = (node.y + node.height) * c.zoom + c.panY;
+    assert.ok(left >= -1e-6 && top >= -1e-6 && right <= c.viewportWidth + 1e-6 && bottom <= c.viewportHeight + 1e-6,
+      `2D refit clips ${node.id}`);
+  }
+});

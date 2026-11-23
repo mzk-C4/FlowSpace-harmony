@@ -10,6 +10,7 @@ export interface CanvasNode {
   lines: string[];
   collapsed: boolean;
   childCount: number;
+  hiddenCount: number;
   depth: number;
 }
 
@@ -69,10 +70,27 @@ export function layoutMap(doc: MindMapDocument): MapScene {
   if (!root) { return { nodes: [], width: 120, height: 80 }; }
   const scene: MapScene = { nodes: [], width: 0, height: 0 };
   const spans: Map<string, number> = new Map<string, number>();
+  const hidden: Map<string, number> = countDescendants(children);
   const down: boolean = doc.layout === 'down';
   measureBranch(root, children, sizes, spans, down, 0);
-  placeBranch(root, children, sizes, spans, scene, down, 16, 16, 0);
+  placeBranch(root, children, sizes, spans, hidden, scene, down, 16, 16, 0);
   return scene;
+}
+
+// Collapsed branches advertise how much content sits behind the disclosure badge.
+function countDescendants(children: Map<string, MindMapNode[]>): Map<string, number> {
+  const counts: Map<string, number> = new Map<string, number>();
+  const count = (id: string): number => {
+    const cached: number | undefined = counts.get(id);
+    if (cached !== undefined) { return cached; }
+    counts.set(id, 0);
+    let total: number = 0;
+    (children.get(id) || []).forEach((child: MindMapNode) => { total += 1 + count(child.id); });
+    counts.set(id, total);
+    return total;
+  };
+  children.forEach((_list: MindMapNode[], id: string) => { count(id); });
+  return counts;
 }
 
 function measureBranch(node: MindMapNode, children: Map<string, MindMapNode[]>, sizes: Map<string, BoxSize>,
@@ -87,21 +105,23 @@ function measureBranch(node: MindMapNode, children: Map<string, MindMapNode[]>, 
 }
 
 function placeBranch(node: MindMapNode, children: Map<string, MindMapNode[]>, sizes: Map<string, BoxSize>,
-  spans: Map<string, number>, scene: MapScene, down: boolean, axis: number, cross: number, depth: number): void {
+  spans: Map<string, number>, hidden: Map<string, number>, scene: MapScene, down: boolean,
+  axis: number, cross: number, depth: number): void {
   const size: BoxSize = sizes.get(node.id) as BoxSize;
   const span: number = spans.get(node.id) as number;
   const allChildren: MindMapNode[] = children.get(node.id) || [];
   const box: CanvasNode = { id: node.id, parentId: node.parentId,
     x: down ? cross + (span - size.width) / 2 : axis, y: down ? axis : cross + (span - size.height) / 2,
     width: size.width, height: size.height, lines: size.lines, collapsed: node.collapsed,
-    childCount: allChildren.length, depth: depth };
+    childCount: allChildren.length, hiddenCount: node.collapsed ? (hidden.get(node.id) || 0) : 0, depth: depth };
   scene.nodes.push(box);
   scene.width = Math.max(scene.width, box.x + box.width + 16);
   scene.height = Math.max(scene.height, box.y + box.height + 16);
   if (node.collapsed || depth >= 8) { return; }
   let cursor: number = cross;
   allChildren.forEach((child: MindMapNode) => {
-    placeBranch(child, children, sizes, spans, scene, down, axis + (down ? size.height + 40 : size.width + 30), cursor, depth + 1);
+    placeBranch(child, children, sizes, spans, hidden, scene, down,
+      axis + (down ? size.height + 40 : size.width + 30), cursor, depth + 1);
     cursor += (spans.get(child.id) as number) + 16;
   });
 }

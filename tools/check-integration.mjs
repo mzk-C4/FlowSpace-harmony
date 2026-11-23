@@ -18,6 +18,12 @@ const entry = read(join(root, 'entry/src/main/ets/pages/Index.ets'));
 for (const name of ['HomePage', 'DIYPage', 'LibraryPage', 'ProfilePage']) {
   assert.ok(entry.includes(name + '({'), `未接入页面 ${name}`);
 }
+const diy = read(join(root, 'entry/src/main/ets/ui/DIYPage.ets'));
+assert.ok(diy.includes('viewMode: this.canvasMode'), 'DIY 未把 2D/3D 模式传给画布');
+assert.ok(diy.includes("@Local canvasMode: string = '2d'"), 'DIY 缺少 2D/3D 视图状态');
+const canvas = read(join(root, 'entry/src/main/ets/canvas/MindMapCanvas.ets'));
+assert.ok(canvas.includes("@Param viewMode: string = '2d'"), '画布缺少 viewMode 参数');
+assert.ok(canvas.includes('paint3D('), '画布缺少 3D 绘制入口');
 const build = read(join(root, 'build-profile.json5'));
 assert.ok(build.includes('6.1.1(24)'), '工程未使用 API 24');
 assert.ok(!build.includes('6.1.1(26)'), '仍引用旧 API');

@@ -43,6 +43,7 @@ export struct DIYPage {
   @Local fitSignal: number = 0;
   @Local zoomSignal: number = 0;
   @Local zoomPercent: number = 100;
+  @Local canvasMode: string = '2d';
   @Local formError: string = '';
   private editingId: string = '';
   private activeDocument: string = '';
@@ -68,6 +69,12 @@ export struct DIYPage {
   private node(): MindMapNode {
     return this.document.nodes.find((node: MindMapNode) => node.id === this.selectedNodeId) ||
       this.document.nodes.find((node: MindMapNode) => node.id === this.document.rootId) || this.document.nodes[0];
+  }
+
+  private wholeMap(): boolean { return this.node().id === this.document.rootId; }
+
+  private scopeLabel(): string {
+    return this.wholeMap() ? '整张导图' : '分支 · ' + this.node().text;
   }
 
   private editable(): boolean { return this.candidateSummary.length === 0; }
@@ -233,20 +240,25 @@ export struct DIYPage {
   chatSheet() {
     Column({ space: 8 }) {
       this.heading('继续整理')
-      Row({ space: 6 }) {
-        Text(this.node().id === this.document.rootId ? '整张导图' : '选中分支 · ' + this.node().text)
-          .fontColor($r('app.color.fs_accent')).fontSize(14).layoutWeight(1).maxLines(2)
-        if (this.node().id !== this.document.rootId) {
-          Button('改为整图', { type: ButtonType.Normal }).height(44).fontSize(14)
-            .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(12)
+      Row({ space: 8 }) {
+        Column({ space: 2 }) {
+          Text('修改范围').fontSize(11).fontColor($r('app.color.fs_muted'))
+          Text(this.scopeLabel()).fontColor($r('app.color.fs_accent')).fontSize(14).fontWeight(FontWeight.Medium)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        if (!this.wholeMap()) {
+          Button('改为整图', { type: ButtonType.Normal }).height(40).fontSize(13).padding({ left: 12, right: 12 })
+            .backgroundColor($r('app.color.fs_surface')).fontColor($r('app.color.fs_accent')).borderRadius(20)
             .onClick(() => { this.onSelect(''); })
         }
-      }.width('100%')
+      }.width('100%').padding({ left: 12, right: 10, top: 8, bottom: 8 })
+        .borderRadius(14).backgroundColor($r('app.color.fs_soft'))
       Scroll(this.chatScroll) {
         Column({ space: 10 }) {
           if (this.document.messages.length === 0) {
             Text('可以试试“为每个分支补充一个例子”。生成后可在画布上确认或放弃修改。')
-              .fontSize(15).lineHeight(23).width('100%').fontColor($r('app.color.fs_muted'))
+              .fontSize(14).lineHeight(21).width('100%').fontColor($r('app.color.fs_muted'))
+              .padding(12).borderRadius(12).backgroundColor($r('app.color.fs_bg'))
           }
           ForEach(this.document.messages.slice(-20), (message: ChatMessage) => {
             Column({ space: 5 }) {
@@ -260,12 +272,16 @@ export struct DIYPage {
           .onAreaChange(() => { this.chatScroll.scrollEdge(Edge.Bottom); })
       }.layoutWeight(1).width('100%').align(Alignment.TopStart)
       if (this.busy) {
-        Row({ space: 8 }) {
+        Row({ space: 10 }) {
           LoadingProgress().width(18).height(18).color($r('app.color.fs_accent'))
-          Text(this.progress || '正在生成修改建议').fontSize(14).layoutWeight(1).fontColor($r('app.color.fs_muted'))
-          Button('取消生成').height(44).fontColor($r('app.color.fs_accent')).backgroundColor($r('app.color.fs_soft'))
-            .onClick(() => this.onCancel())
-        }.width('100%')
+          Column({ space: 2 }) {
+            Text(this.progress || '正在生成修改建议').fontSize(14).fontColor($r('app.color.fs_text')).maxLines(1)
+            Text(this.scopeLabel()).fontSize(11).fontColor($r('app.color.fs_muted')).maxLines(1)
+          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          Button('取消').height(44).fontSize(14).fontColor($r('app.color.fs_accent'))
+            .backgroundColor($r('app.color.fs_soft')).onClick(() => this.onCancel())
+        }.width('100%').padding({ left: 12, right: 6, top: 6, bottom: 6 })
+          .borderRadius(14).backgroundColor($r('app.color.fs_bg'))
       } else if (this.candidateSummary) {
         this.primary('查看候选', true, () => { this.sheetOpen = false; this.fitSignal++; })
       } else {
@@ -280,6 +296,7 @@ export struct DIYPage {
             appSymbol($r('sys.symbol.arrow_up'), 22, $r('app.color.fs_on_accent'))
           }.width(46).height(46).padding(0).backgroundColor($r('app.color.fs_accent'))
             .enabled(this.instruction.trim().length > 0 && this.instruction.length <= 20000)
+            .opacity(this.instruction.trim().length > 0 && this.instruction.length <= 20000 ? 1 : 0.42)
             .accessibilityText('发送整理指令').id('chat-send').onClick(() => this.submitChat())
         }.width('100%')
       }
@@ -328,25 +345,37 @@ export struct DIYPage {
   @Builder
   feedback() {
     if (this.candidateSummary) {
-      Column({ space: 4 }) {
-        Text(this.canApply ? '候选预览' : '候选已过期').fontSize(15).fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.fs_accent')).width('100%')
+      Column({ space: 6 }) {
+        Row({ space: 8 }) {
+          Text(this.canApply ? '候选预览' : '候选已过期').fontSize(15).fontWeight(FontWeight.Bold)
+            .fontColor(this.canApply ? $r('app.color.fs_accent') : $r('app.color.fs_danger')).layoutWeight(1)
+          Text(this.document.nodes.length + ' 个节点').fontSize(12).fontColor($r('app.color.fs_muted'))
+        }.width('100%')
+        Text('修改范围 · ' + this.scopeLabel()).fontSize(12).fontColor($r('app.color.fs_muted'))
+          .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
         Text(this.canApply ? this.candidateSummary : '导图已有新的编辑，请放弃候选后重新生成。')
           .fontSize(14).fontColor($r('app.color.fs_text')).width('100%').maxLines(2)
+        if (this.canApply) {
+          Text('应用后可一次撤销，恢复修改前的导图。').fontSize(11).fontColor($r('app.color.fs_muted')).width('100%')
+        }
         Row({ space: 8 }) {
-          Button('放弃候选').height(44).layoutWeight(1).backgroundColor($r('app.color.fs_surface'))
-            .fontColor($r('app.color.fs_text')).onClick(() => this.onDiscardCandidate())
-          Button('确认应用').height(44).layoutWeight(1).backgroundColor($r('app.color.fs_accent'))
-            .fontColor($r('app.color.fs_on_accent')).enabled(this.canApply).onClick(() => this.onApplyCandidate())
+          Button('放弃候选').height(44).layoutWeight(1).fontSize(14).backgroundColor($r('app.color.fs_surface'))
+            .fontColor($r('app.color.fs_muted')).onClick(() => this.onDiscardCandidate())
+          Button('确认应用').height(44).layoutWeight(1.8).fontSize(15).fontWeight(FontWeight.Medium)
+            .backgroundColor($r('app.color.fs_accent')).fontColor($r('app.color.fs_on_accent'))
+            .enabled(this.canApply).opacity(this.canApply ? 1 : 0.45).onClick(() => this.onApplyCandidate())
         }.width('100%')
-      }.width('100%').padding({ left: 16, right: 16, top: 8, bottom: 8 }).backgroundColor($r('app.color.fs_soft'))
+      }.width('100%').padding({ left: 16, right: 16, top: 8, bottom: 10 }).backgroundColor($r('app.color.fs_soft'))
     } else if (this.busy) {
-      Row({ space: 8 }) {
+      Row({ space: 10 }) {
         LoadingProgress().width(18).height(18).color($r('app.color.fs_accent'))
-        Text(this.progress || '正在生成导图').fontSize(14).fontColor($r('app.color.fs_accent')).layoutWeight(1).maxLines(2)
-        Button('取消').height(44).backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
+        Column({ space: 2 }) {
+          Text(this.progress || '正在生成导图').fontSize(14).fontColor($r('app.color.fs_text')).maxLines(1)
+          Text('范围 · ' + this.scopeLabel()).fontSize(11).fontColor($r('app.color.fs_muted')).maxLines(1)
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        Button('取消').height(44).fontSize(14).backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
           .onClick(() => this.onCancel())
-      }.width('100%').padding({ left: 16, right: 16 })
+      }.width('100%').padding({ left: 16, right: 10, top: 6, bottom: 6 })
     }
     if (this.errorMessage && !this.candidateSummary) {
       Text(this.errorMessage).fontSize(14).fontColor($r('app.color.fs_danger')).padding(10).width('100%').maxLines(3)
@@ -368,15 +397,34 @@ export struct DIYPage {
           onActivate: () => { this.send('redo'); } })
         IconButton({ icon: $r('sys.symbol.share'), label: '导出', available: this.editable(),
           onActivate: () => this.openPanel('export') })
-      }.width('100%').padding({ left: 18, right: 8, top: 10, bottom: 10 }).backgroundColor($r('app.color.fs_surface'))
+      }.width('100%').padding({ left: 18, right: 8, top: 7, bottom: 7 }).backgroundColor($r('app.color.fs_surface'))
       Divider().color($r('app.color.fs_border')).strokeWidth(0.5)
       this.feedback()
       Stack({ alignContent: Alignment.BottomEnd }) {
         MindMapCanvas({ document: this.document, selectedNodeId: this.node().id, fitSignal: this.fitSignal + this.generatedFit,
-          appearance: this.appearance, zoomSignal: this.zoomSignal, onSelect: (id: string) => { this.onSelect(id); },
+          appearance: this.appearance, viewMode: this.canvasMode, zoomSignal: this.zoomSignal,
+          onSelect: (id: string) => { this.onSelect(id); },
           onToggle: (id: string) => { this.send('toggle', '', '', '', id); },
           onZoom: (value: number) => { this.zoomPercent = value; } })
-        Row() {
+        if (this.document.nodes.length === 1 && !this.candidateSummary && !this.busy) {
+          Column() {
+            Column({ space: 4 }) {
+              Text('从根节点开始').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+              Text('点选节点后用下方 ＋ 添加分支，打开“继续整理”让 AI 扩展；右下角可切换 2D / 3D。')
+                .fontSize(13).lineHeight(19).fontColor($r('app.color.fs_muted')).maxLines(2)
+            }.alignItems(HorizontalAlign.Start).padding(14).borderRadius(14)
+              .backgroundColor($r('app.color.fs_surface')).border({ width: 0.5, color: $r('app.color.fs_border') })
+          }.width('100%').height('100%').padding(16).justifyContent(FlexAlign.Start).alignItems(HorizontalAlign.Start)
+            .hitTestBehavior(HitTestMode.None)
+        }
+        Row({ space: 0 }) {
+          Button(this.canvasMode === '3d' ? '3D' : '2D', { type: ButtonType.Normal })
+            .width(44).height(44).padding(0).fontSize(12).fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.fs_accent'))
+            .backgroundColor(this.canvasMode === '3d' ? $r('app.color.fs_soft') : Color.Transparent)
+            .borderRadius(22).accessibilityText('切换二维或三维视图')
+            .onClick(() => { this.canvasMode = this.canvasMode === '3d' ? '2d' : '3d'; })
+          Divider().vertical(true).height(20).color($r('app.color.fs_border'))
           IconButton({ icon: $r('sys.symbol.minus'), label: '缩小画布', onActivate: () => { this.zoomSignal--; } })
           Text(this.zoomPercent === 0 ? '<0.1%' : this.zoomPercent + '%').fontSize(12).fontColor($r('app.color.fs_muted'))
             .constraintSize({ minWidth: 34 }).textAlign(TextAlign.Center)
@@ -387,27 +435,22 @@ export struct DIYPage {
           .border({ width: 0.5, color: $r('app.color.fs_border') }).margin(12)
       }.width('100%').layoutWeight(1).clip(true)
       Divider().color($r('app.color.fs_border')).strokeWidth(0.5)
-      Column({ space: 6 }) {
-        Row() {
-          Column({ space: 1 }) {
-            Text('选中节点').fontSize(12).fontColor($r('app.color.fs_muted'))
-            Text(this.node().text).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-              .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-          IconButton({ icon: $r('sys.symbol.square_and_pencil'), label: '编辑选中节点', available: this.editable(),
-            onActivate: () => this.openEditor('edit') })
-          IconButton({ icon: $r('sys.symbol.plus_circle'), label: '添加子节点', available: this.editable(),
-            onActivate: () => this.openEditor('addChild') })
-          IconButton({ icon: $r('sys.symbol.ellipsis_circle'), label: '更多导图工具', onActivate: () => this.openPanel('actions') })
-        }.width('100%')
-        Button({ type: ButtonType.Normal }) {
-          Row({ space: 8 }) {
-            appSymbol($r('sys.symbol.wand_and_stars'), 18, $r('app.color.fs_accent'))
-            Text('继续整理').fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_accent'))
-          }
-        }.width('100%').height(44).borderRadius(13).backgroundColor($r('app.color.fs_soft')).id('open-chat')
+      Row({ space: 2 }) {
+        Column({ space: 1 }) {
+          Text(this.wholeMap() ? '整张导图' : '当前分支').fontSize(11).fontColor($r('app.color.fs_muted'))
+          Text(this.node().text).fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        IconButton({ icon: $r('sys.symbol.square_and_pencil'), label: '编辑选中节点', available: this.editable(),
+          onActivate: () => this.openEditor('edit') })
+        IconButton({ icon: $r('sys.symbol.plus_circle'), label: '添加子节点', available: this.editable(),
+          onActivate: () => this.openEditor('addChild') })
+        IconButton({ icon: $r('sys.symbol.ellipsis_circle'), label: '更多导图工具', onActivate: () => this.openPanel('actions') })
+        Button('继续整理', { type: ButtonType.Normal }).height(40).constraintSize({ minWidth: 80 })
+          .fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_accent'))
+          .padding({ left: 12, right: 12 }).borderRadius(20).backgroundColor($r('app.color.fs_soft')).id('open-chat')
           .accessibilityText('继续整理，打开对话').onClick(() => this.openPanel('chat'))
-      }.padding({ left: 16, right: 16, top: 6, bottom: 8 }).backgroundColor($r('app.color.fs_surface')).width('100%')
+      }.padding({ left: 16, right: 8, top: 4, bottom: 6 }).backgroundColor($r('app.color.fs_surface')).width('100%')
     }.width('100%').height('100%').backgroundColor($r('app.color.fs_bg'))
       .bindSheet(this.sheetOpen, this.sheetContent(), { height: SheetSize.LARGE, showClose: true,
         backgroundColor: $r('app.color.fs_surface'), keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
