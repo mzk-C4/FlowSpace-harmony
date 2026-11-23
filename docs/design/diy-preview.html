@@ -34,6 +34,12 @@
   .card .label{pointer-events:none;padding:0 6px;overflow:hidden;text-overflow:ellipsis}
   .badge{position:absolute;border-radius:50%;background:var(--accent);color:var(--on);display:grid;place-items:center;
     cursor:pointer;user-select:none;font-weight:500;line-height:1}
+  .card.image-card{display:block;padding:0;white-space:normal;text-align:left}
+  .card.image-card .thumb{display:block;width:100%;object-fit:cover;background:var(--soft)}
+  .card.image-card .copy{padding:6px 9px 7px;min-width:0}
+  .card.image-card .label{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;line-height:1.25}
+  .card.image-card .note{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);margin-top:2px;line-height:1.3}
+  .card.image-card .tag{position:absolute;top:6px;right:6px;background:rgba(83,84,199,.92);color:#fff;padding:1px 5px;border-radius:6px;font-size:.72em;font-weight:500}
   .zoom{position:absolute;right:12px;bottom:12px;height:44px;display:flex;align-items:center;background:var(--surface);
     border:.5px solid var(--border);border-radius:22px;padding:0 2px;z-index:5000;box-shadow:0 2px 10px #0001}
   .zoom button{width:44px;height:44px;border:0;background:transparent;color:var(--accent);display:grid;place-items:center;padding:0;border-radius:22px}
@@ -116,6 +122,10 @@
     <p>2D 单指拖动平移；3D 单指拖动像转球一样自由旋转，滚轮缩放。点击节点选中，点击右侧圆点折叠/展开分支。</p>
     <div class="controls">
       <div class="row">
+        <button data-sample="simple" class="active">基础示例</button>
+        <button data-sample="complex">复杂图像</button>
+      </div>
+      <div class="row">
         <button data-mode="2d" class="active">2D</button>
         <button data-mode="3d">3D</button>
       </div>
@@ -124,6 +134,7 @@
         <button data-layout="down">向下布局</button>
       </div>
       <div class="row">
+        <button id="focus-branch">聚焦分支</button>
         <button id="fit2">适应画布</button>
         <button id="reset-view">复位球体</button>
         <button id="collapse-demo">折叠「系统性质」</button>
@@ -135,13 +146,14 @@
       <div>缩放：<b id="meta-zoom">—</b></div>
       <div>选中：<b id="meta-selected">信号表征</b></div>
     </div>
+    <p class="notice">复杂图像示例为本地原型：图片节点使用内嵌 SVG 缩略图。原生画布目前只绘制文字，图片导入、绘制、缓存和导出尚未接入。</p>
     <p class="notice">2D 使用平面树布局；3D 使用球形轨迹球旋转：拖动方向决定旋转轴，没有俯仰上限，镜头按透视缩放并保留阴影与厚度面。卡片保持正面朝向（billboard），导出仍为完整 2D 树。此页面不连接模型，不替代原生设备验收。</p>
   </aside>
 </div>
 
 <script>
 (() => {
-  const nodes = [
+  const simpleNodes = [
     {id:'signals',parentId:'',order:0,text:'信号与系统',collapsed:false},
     {id:'signal',parentId:'signals',order:0,text:'信号表征',collapsed:false},
     {id:'system',parentId:'signals',order:1,text:'系统性质',collapsed:false},
@@ -153,6 +165,46 @@
     {id:'fourier',parentId:'transform',order:0,text:'傅里叶变换',collapsed:false},
     {id:'sampling',parentId:'transform',order:1,text:'采样',collapsed:false}
   ];
+  function svg(inner) {
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 70"><rect width="180" height="70" fill="#F6F6FB"/>${inner}</svg>`);
+  }
+  const IMG = {
+    sine: svg('<line x1="8" y1="35" x2="172" y2="35" stroke="#E1E1EC"/><path d="M8 35 C28 8 48 8 68 35 S108 62 128 35 S168 8 180 35" fill="none" stroke="#5354C7" stroke-width="2.4" stroke-linecap="round"/>'),
+    square: svg('<line x1="8" y1="50" x2="172" y2="50" stroke="#E1E1EC"/><path d="M8 50 L8 20 L50 20 L50 50 L92 50 L92 20 L134 20 L134 50 L172 50" fill="none" stroke="#5354C7" stroke-width="2.4" stroke-linejoin="round"/>'),
+    impulse: svg('<line x1="8" y1="54" x2="172" y2="54" stroke="#E1E1EC"/><g stroke="#5354C7" stroke-width="2"><line x1="35" y1="54" x2="35" y2="16"/><line x1="80" y1="54" x2="80" y2="28"/><line x1="125" y1="54" x2="125" y2="38"/></g><g fill="#5354C7"><circle cx="35" cy="16" r="3"/><circle cx="80" cy="28" r="3"/><circle cx="125" cy="38" r="3"/></g>'),
+    spectrum: svg('<line x1="8" y1="58" x2="172" y2="58" stroke="#E1E1EC"/><g fill="#5354C7"><rect x="20" y="22" width="10" height="36" rx="2"/><rect x="46" y="36" width="10" height="22" rx="2"/><rect x="72" y="28" width="10" height="30" rx="2"/><rect x="98" y="44" width="10" height="14" rx="2"/><rect x="124" y="34" width="10" height="24" rx="2"/><rect x="150" y="48" width="10" height="10" rx="2"/></g><path d="M8 54 C35 54 40 20 70 20 S105 54 140 54 S165 42 172 42" fill="none" stroke="#9A9AC8" stroke-width="1.4" stroke-dasharray="4 4"/>'),
+    block: svg('<g fill="#FFFFFF" stroke="#5354C7" stroke-width="1.6"><rect x="12" y="22" width="34" height="26" rx="6"/><rect x="72" y="22" width="34" height="26" rx="6"/><rect x="132" y="22" width="34" height="26" rx="6"/></g><g stroke="#81849B" stroke-width="1.8" fill="none"><path d="M46 35h26M106 35h26"/><path d="m68 31 4 4-4 4M128 31l4 4-4 4"/></g>'),
+    sampling: svg('<path d="M8 35 C28 10 48 10 68 35 S108 60 128 35 S168 10 180 35" fill="none" stroke="#B9B9D9" stroke-width="1.6"/><g fill="#5354C7"><circle cx="22" cy="18" r="3"/><circle cx="58" cy="52" r="3"/><circle cx="94" cy="18" r="3"/><circle cx="130" cy="52" r="3"/><circle cx="166" cy="18" r="3"/></g><line x1="8" y1="58" x2="172" y2="58" stroke="#E1E1EC"/>'),
+    filter: svg('<line x1="8" y1="58" x2="172" y2="58" stroke="#E1E1EC"/><path d="M9 54 L60 54 C84 54 92 14 112 14 C132 14 140 54 171 54" fill="none" stroke="#5354C7" stroke-width="2.4" stroke-linecap="round"/><path d="M92 12v46" stroke="#C3C3E2" stroke-dasharray="4 4"/>'),
+    modulation: svg('<path d="M8 52 C24 30 40 30 56 52 S88 74 104 52 S136 30 152 52 S172 68 180 52" fill="none" stroke="#5354C7" stroke-width="2"/><path d="M8 34 C24 18 40 18 56 34 S88 50 104 34 S136 18 152 34 S172 46 180 34" fill="none" stroke="#B9B9D9" stroke-width="1.2" stroke-dasharray="4 4"/>'),
+    constellation: svg('<g fill="#5354C7"><circle cx="40" cy="22" r="3"/><circle cx="70" cy="22" r="3"/><circle cx="100" cy="22" r="3"/><circle cx="130" cy="22" r="3"/><circle cx="55" cy="48" r="3"/><circle cx="85" cy="48" r="3"/><circle cx="115" cy="48" r="3"/><circle cx="145" cy="48" r="3"/></g><g stroke="#D9D9E8"><line x1="12" y1="12" x2="12" y2="60"/><line x1="12" y1="60" x2="168" y2="60"/></g>')
+  };
+  const complexNodes = [
+    {id:'signals',parentId:'',order:0,text:'信号与系统',note:'课程复习总览',collapsed:false},
+    {id:'signal',parentId:'signals',order:0,text:'信号表征',note:'定义域、周期、能量',image:IMG.sine,collapsed:false},
+    {id:'system',parentId:'signals',order:1,text:'系统性质',note:'线性、时不变、稳定',collapsed:false},
+    {id:'transform',parentId:'signals',order:2,text:'频域分析',note:'傅里叶、拉普拉斯、Z',image:IMG.spectrum,collapsed:false},
+    {id:'sampling',parentId:'signals',order:3,text:'采样与重建',note:'采样定理与混叠',image:IMG.sampling,collapsed:false},
+    {id:'application',parentId:'signals',order:4,text:'应用案例',note:'滤波、调制、通信',collapsed:false},
+    {id:'continuous',parentId:'signal',order:0,text:'连续与离散',image:IMG.sine,collapsed:false},
+    {id:'periodic',parentId:'signal',order:1,text:'周期与非周期',image:IMG.square,collapsed:false},
+    {id:'energy',parentId:'signal',order:2,text:'能量与功率',image:IMG.impulse,collapsed:false},
+    {id:'linear',parentId:'system',order:0,text:'线性',note:'齐次性与可加性',collapsed:false},
+    {id:'invariant',parentId:'system',order:1,text:'时不变',collapsed:false},
+    {id:'causal',parentId:'system',order:2,text:'因果与稳定',image:IMG.block,collapsed:false},
+    {id:'fourier',parentId:'transform',order:0,text:'傅里叶变换',image:IMG.spectrum,collapsed:false},
+    {id:'laplace',parentId:'transform',order:1,text:'拉普拉斯变换',collapsed:true},
+    {id:'ztransform',parentId:'transform',order:2,text:'Z 变换',collapsed:false},
+    {id:'rocs',parentId:'laplace',order:0,text:'收敛域',collapsed:false},
+    {id:'nyquist',parentId:'sampling',order:0,text:'采样定理',image:IMG.sampling,collapsed:false},
+    {id:'aliasing',parentId:'sampling',order:1,text:'混叠',image:IMG.sine,collapsed:false},
+    {id:'reconstruction',parentId:'sampling',order:2,text:'重建',image:IMG.filter,collapsed:false},
+    {id:'filter',parentId:'application',order:0,text:'滤波器设计',image:IMG.filter,tag:'重点',collapsed:false},
+    {id:'modulation',parentId:'application',order:1,text:'调制与解调',image:IMG.modulation,collapsed:false},
+    {id:'communication',parentId:'application',order:2,text:'通信系统',image:IMG.constellation,collapsed:false},
+  ];
+  let nodes = simpleNodes;
   const rootId = 'signals';
   const DEFAULT_YAW = -0.35;
   const DEFAULT_PITCH = 0.35;
@@ -162,7 +214,9 @@
   const pitchParam = Number(params.get('pitch'));
   const initialYaw = Number.isFinite(yawParam) && params.has('yaw') ? yawParam * Math.PI / 180 : DEFAULT_YAW;
   const initialPitch = Number.isFinite(pitchParam) && params.has('pitch') ? pitchParam * Math.PI / 180 : DEFAULT_PITCH;
+  if (params.get('sample') === 'complex') nodes = complexNodes;
   const state = {
+    sample: params.get('sample') === 'complex' ? 'complex' : 'simple',
     mode: params.get('mode') === '3d' ? '3d' : '2d',
     layout: params.get('layout') === 'down' ? 'down' : 'right',
     selectedId: 'signal',
@@ -192,15 +246,20 @@
     if (line.length > 0 || lines.length === 0) lines.push(line);
     return lines;
   }
-  function nodeSize(text) {
-    const lines = nodeLines(text);
+  function nodeSize(node) {
+    const lines = nodeLines(node.text);
     let widest = 0;
     for (const line of lines) {
       let units = 0;
       for (const char of line) units += (char.codePointAt(0) || 0) > 255 ? 1 : 0.56;
       widest = Math.max(widest, units);
     }
-    return {w: Math.max(76, Math.ceil(widest * 15) + 30), h: Math.max(50, lines.length * 22 + 28), lines};
+    let w = Math.max(76, Math.ceil(widest * 15) + 30);
+    let h = Math.max(50, lines.length * 22 + 28);
+    if (node.image) { w = Math.max(w, 190); h += 82; }
+    if (node.note) { w = Math.max(w, 150); h += 18; }
+    if (node.tag) { w = Math.max(w, 110); }
+    return {w, h, lines};
   }
   function layoutMap(doc) {
     const children = new Map();
@@ -208,7 +267,7 @@
     for (const node of doc.nodes) {
       if (!children.has(node.parentId)) children.set(node.parentId, []);
       children.get(node.parentId).push(node);
-      sizes.set(node.id, nodeSize(node.text));
+      sizes.set(node.id, nodeSize(node));
     }
     for (const list of children.values()) list.sort((a, b) => a.order - b.order);
     const root = doc.nodes.find(node => node.id === doc.rootId);
@@ -243,7 +302,8 @@
         x: down ? cross + (span - size.w) / 2 : axis,
         y: down ? axis : cross + (span - size.h) / 2,
         w: size.w, h: size.h, lines: size.lines, collapsed: node.collapsed,
-        childCount: all.length, hiddenCount: node.collapsed ? (counts.get(node.id) || 0) : 0
+        childCount: all.length, hiddenCount: node.collapsed ? (counts.get(node.id) || 0) : 0,
+        image: node.image, note: node.note, tag: node.tag
       };
       scene.nodes.push(box);
       scene.width = Math.max(scene.width, box.x + box.w + 16);
@@ -324,6 +384,28 @@
     state.zoom = Math.max(0.000001, Math.min(1.25, Math.min(rect.width / b.w, rect.height / b.h) * 0.92));
     state.panX = (rect.width - b.w * state.zoom) / 2 - b.minX * state.zoom;
     state.panY = (rect.height - b.h * state.zoom) / 2 - b.minY * state.zoom;
+  }
+  function focusOn(id, targetZoom) {
+    const scene = layoutMap({nodes, rootId, layout: state.layout});
+    const node = scene.nodes.find(item => item.id === id) || scene.nodes[0];
+    if (!node) return;
+    const view = state.mode === '3d' ? camera(scene) : null;
+    let cx, cy;
+    if (view) {
+      const item = project(scene, node, view);
+      cx = item.x;
+      cy = item.y;
+    } else {
+      cx = node.x + node.w / 2;
+      cy = node.y + node.h / 2;
+    }
+    state.zoom = targetZoom || 0.65;
+    const rect = canvas.getBoundingClientRect();
+    const bias = state.sample === 'complex' && state.layout === 'right' ? rect.width * 0.16 : 0;
+    state.panX = rect.width / 2 - cx * state.zoom - bias;
+    state.panY = rect.height / 2 - cy * state.zoom;
+    state.initialized = true;
+    render();
   }
   function selectedPath() {
     const byId = new Map(nodes.map(node => [node.id, node]));
@@ -418,11 +500,43 @@
       card.className = 'card';
       card.dataset.node = node.id;
       card.style.cssText = `left:${item.x - item.w / 2}px;top:${item.y - item.h / 2}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${fill};border:${strokeWidth}px solid ${stroke};color:${isRoot ? '#FFFFFF' : '#1D1D1F'};font-size:${Math.max(7, 15 * state.zoom * item.scale)}px;font-weight:${isRoot ? 700 : selected ? 500 : 400}`;
-      const label = document.createElement('span');
-      label.className = 'label';
-      label.textContent = node.lines.join('\n');
-      label.style.whiteSpace = 'pre-line';
-      card.appendChild(label);
+      if (node.image) {
+        card.classList.add('image-card');
+        const thumb = document.createElement('img');
+        thumb.className = 'thumb';
+        thumb.src = node.image;
+        thumb.alt = '';
+        thumb.style.height = `${Math.max(16, 62 * state.zoom * item.scale)}px`;
+        const copy = document.createElement('div');
+        copy.className = 'copy';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = node.lines.join(' ');
+        label.style.fontSize = `${Math.max(7, 14 * state.zoom * item.scale)}px`;
+        copy.appendChild(label);
+        if (node.note) {
+          const note = document.createElement('span');
+          note.className = 'note';
+          note.textContent = node.note;
+          note.style.fontSize = `${Math.max(6, 10.5 * state.zoom * item.scale)}px`;
+          copy.appendChild(note);
+        }
+        card.appendChild(thumb);
+        card.appendChild(copy);
+        if (node.tag) {
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = node.tag;
+          tag.style.fontSize = `${Math.max(6, 10 * state.zoom * item.scale)}px`;
+          card.appendChild(tag);
+        }
+      } else {
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = node.lines.join('\n');
+        label.style.whiteSpace = 'pre-line';
+        card.appendChild(label);
+      }
       card.addEventListener('click', event => {
         event.stopPropagation();
         state.selectedId = node.id;
@@ -456,6 +570,7 @@
     document.getElementById('meta-selected').textContent = selectedNode.text;
     document.getElementById('mode-btn').textContent = state.mode === '3d' ? '3D' : '2D';
     document.getElementById('mode-btn').classList.toggle('active', state.mode === '3d');
+    document.querySelectorAll('[data-sample]').forEach(button => button.classList.toggle('active', button.dataset.sample === state.sample));
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
     document.querySelectorAll('[data-layout]').forEach(button => button.classList.toggle('active', button.dataset.layout === state.layout));
     document.getElementById('collapse-demo').textContent = nodes.find(node => node.id === 'system').collapsed ? '展开「系统性质」' : '折叠「系统性质」';
@@ -463,7 +578,21 @@
   }
 
   function updateUrl() {
-    try { history.replaceState(null, '', '?mode=' + state.mode + '&layout=' + state.layout); } catch (_) {}
+    try {
+      history.replaceState(null, '', '?sample=' + state.sample + '&mode=' + state.mode + '&layout=' + state.layout);
+    } catch (_) {}
+  }
+  function settleView() {
+    render();
+    if (state.sample === 'complex') focusOn(state.selectedId, 0.62);
+  }
+  function setSample(sample) {
+    state.sample = sample;
+    nodes = sample === 'complex' ? complexNodes : simpleNodes;
+    state.selectedId = 'signal';
+    state.initialized = false;
+    updateUrl();
+    settleView();
   }
   function setMode(mode) {
     state.mode = mode;
@@ -471,13 +600,13 @@
     state.initialized = false;
     state.selectedId = state.selectedId || 'signal';
     updateUrl();
-    render();
+    settleView();
   }
   function setLayout(layout) {
     state.layout = layout;
     state.initialized = false;
     updateUrl();
-    render();
+    settleView();
   }
   function zoomAt(factor, cx, cy) {
     const next = Math.min(3, Math.max(0.000001, state.zoom * factor));
@@ -493,6 +622,7 @@
   document.getElementById('zoom-out').addEventListener('click', () => zoomAt(1 / 1.2, canvas.clientWidth / 2, canvas.clientHeight / 2));
   document.getElementById('fit').addEventListener('click', () => { state.initialized = false; render(); });
   document.getElementById('fit2').addEventListener('click', () => { state.initialized = false; render(); });
+  document.getElementById('focus-branch').addEventListener('click', () => focusOn(state.selectedId, 0.62));
   document.getElementById('reset-view').addEventListener('click', () => {
     state.rotation = defaultOrientation();
     state.initialized = false;
@@ -503,6 +633,7 @@
     target.collapsed = !target.collapsed;
     render();
   });
+  document.querySelectorAll('[data-sample]').forEach(button => button.addEventListener('click', () => setSample(button.dataset.sample)));
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   document.querySelectorAll('[data-layout]').forEach(button => button.addEventListener('click', () => setLayout(button.dataset.layout)));
 
@@ -538,9 +669,9 @@
     const rect = canvas.getBoundingClientRect();
     zoomAt(event.deltaY > 0 ? 0.92 : 1.08, event.clientX - rect.left, event.clientY - rect.top);
   }, {passive: false});
-  window.addEventListener('resize', () => { state.initialized = false; render(); });
+  window.addEventListener('resize', () => settleView());
 
-  render();
+  settleView();
 })();
 </script>
 </body>
