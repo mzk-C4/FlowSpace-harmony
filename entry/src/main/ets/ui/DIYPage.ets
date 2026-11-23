@@ -90,6 +90,12 @@ export struct DIYPage {
 
   private openPanel(panel: string): void {
     this.panel = panel; this.formError = ''; this.sheetOpen = true;
+    if (panel === 'chat') {
+      // Open the sheet with the natural-language field ready for the keyboard.
+      setTimeout(() => {
+        try { this.getUIContext().getFocusController().requestFocus('chat-input'); } catch (_) {}
+      }, 180);
+    }
   }
 
   private openEditor(kind: string): void {
@@ -240,7 +246,7 @@ export struct DIYPage {
   @Builder
   chatSheet() {
     Column({ space: 8 }) {
-      this.heading('继续整理')
+      this.heading('自然语言生成与修改')
       Row({ space: 8 }) {
         Column({ space: 2 }) {
           Text('修改范围').fontSize(11).fontColor($r('app.color.fs_muted'))
@@ -257,7 +263,7 @@ export struct DIYPage {
       Scroll(this.chatScroll) {
         Column({ space: 10 }) {
           if (this.document.messages.length === 0) {
-            Text('可以试试“为每个分支补充一个例子”。生成后可在画布上确认或放弃修改。')
+            Text('输入一个主题生成导图，或试试“为每个分支补充一个例子”。生成后可在画布上确认或放弃修改。')
               .fontSize(14).lineHeight(21).width('100%').fontColor($r('app.color.fs_muted'))
               .padding(12).borderRadius(12).backgroundColor($r('app.color.fs_bg'))
           }
@@ -290,9 +296,10 @@ export struct DIYPage {
           Text('超过 20,000 字，请缩短后发送。').fontSize(13).fontColor($r('app.color.fs_danger'))
         }
         Row({ space: 8 }) {
-          TextArea({ text: this.instruction, placeholder: '描述你希望怎样修改…' })
+          TextArea({ text: this.instruction, placeholder: '描述想生成或修改的内容…' })
             .height(62).layoutWeight(1).fontSize(16).fontColor($r('app.color.fs_text')).backgroundColor($r('app.color.fs_bg'))
-            .accessibilityText('整理指令').id('chat-input').onChange((value: string) => { this.instruction = value; })
+            .accessibilityText('自然语言生成或修改指令').id('chat-input').key('chat-input')
+            .onChange((value: string) => { this.instruction = value; })
           Button({ type: ButtonType.Circle }) {
             appSymbol($r('sys.symbol.arrow_up'), 22, $r('app.color.fs_on_accent'))
           }.width(46).height(46).padding(0).backgroundColor($r('app.color.fs_accent'))
@@ -411,7 +418,7 @@ export struct DIYPage {
           Column() {
             Column({ space: 4 }) {
               Text('从根节点开始').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-              Text('点选节点后用下方 ＋ 添加分支，打开“继续整理”让 AI 扩展；右下角切换 2D / 3D，3D 单指旋转、双指平移缩放。')
+              Text('用下方自然语言输入生成第一张导图，或点选节点后用 ＋ 添加分支；右下角切换 2D / 3D。')
                 .fontSize(13).lineHeight(19).fontColor($r('app.color.fs_muted')).maxLines(2)
             }.alignItems(HorizontalAlign.Start).padding(14).borderRadius(14)
               .backgroundColor($r('app.color.fs_surface')).border({ width: 0.5, color: $r('app.color.fs_border') })
@@ -442,22 +449,32 @@ export struct DIYPage {
           .border({ width: 0.5, color: $r('app.color.fs_border') }).margin(12)
       }.width('100%').layoutWeight(1).clip(true)
       Divider().color($r('app.color.fs_border')).strokeWidth(0.5)
-      Row({ space: 2 }) {
-        Column({ space: 1 }) {
-          Text(this.wholeMap() ? '整张导图' : '当前分支').fontSize(11).fontColor($r('app.color.fs_muted'))
-          Text(this.node().text).fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-        IconButton({ icon: $r('sys.symbol.square_and_pencil'), label: '编辑选中节点', available: this.editable(),
-          onActivate: () => this.openEditor('edit') })
-        IconButton({ icon: $r('sys.symbol.plus_circle'), label: '添加子节点', available: this.editable(),
-          onActivate: () => this.openEditor('addChild') })
-        IconButton({ icon: $r('sys.symbol.ellipsis_circle'), label: '更多导图工具', onActivate: () => this.openPanel('actions') })
-        Button('继续整理', { type: ButtonType.Normal }).height(40).constraintSize({ minWidth: 80 })
-          .fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_accent'))
-          .padding({ left: 12, right: 12 }).borderRadius(20).backgroundColor($r('app.color.fs_soft')).id('open-chat')
-          .accessibilityText('继续整理，打开对话').onClick(() => this.openPanel('chat'))
-      }.padding({ left: 16, right: 8, top: 4, bottom: 6 }).backgroundColor($r('app.color.fs_surface')).width('100%')
+      Column({ space: 6 }) {
+        Row({ space: 2 }) {
+          Column({ space: 1 }) {
+            Text(this.wholeMap() ? '整张导图' : '当前分支').fontSize(11).fontColor($r('app.color.fs_muted'))
+            Text(this.node().text).fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+              .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          IconButton({ icon: $r('sys.symbol.square_and_pencil'), label: '编辑选中节点', available: this.editable(),
+            onActivate: () => this.openEditor('edit') })
+          IconButton({ icon: $r('sys.symbol.plus_circle'), label: '添加子节点', available: this.editable(),
+            onActivate: () => this.openEditor('addChild') })
+          IconButton({ icon: $r('sys.symbol.ellipsis_circle'), label: '更多导图工具', onActivate: () => this.openPanel('actions') })
+        }.width('100%')
+        Button({ type: ButtonType.Normal }) {
+          Row({ space: 9 }) {
+            appSymbol($r('sys.symbol.wand_and_stars'), 19, $r('app.color.fs_accent'))
+            Column({ space: 1 }) {
+              Text(this.document.nodes.length <= 1 ? '描述一个主题，生成第一张导图…' : '用自然语言生成或修改导图…')
+                .fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_accent')).maxLines(1)
+              Text('范围 · ' + (this.wholeMap() ? '整图' : '分支')).fontSize(10).fontColor($r('app.color.fs_muted')).maxLines(1)
+            }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+            appSymbol($r('sys.symbol.arrow_up'), 18, $r('app.color.fs_accent'))
+          }.width('100%')
+        }.width('100%').height(48).borderRadius(24).backgroundColor($r('app.color.fs_soft')).id('open-chat')
+          .accessibilityText('自然语言生成或修改导图').onClick(() => this.openPanel('chat'))
+      }.padding({ left: 16, right: 16, top: 4, bottom: 7 }).backgroundColor($r('app.color.fs_surface')).width('100%')
     }.width('100%').height('100%').backgroundColor($r('app.color.fs_bg'))
       .bindSheet(this.sheetOpen, this.sheetContent(), { height: SheetSize.LARGE, showClose: true,
         backgroundColor: $r('app.color.fs_surface'), keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
