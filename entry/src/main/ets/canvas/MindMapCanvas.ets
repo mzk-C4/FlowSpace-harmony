@@ -144,7 +144,7 @@ export struct MindMapCanvas {
   }
 
   private rebuildScene(): void {
-    this.scene = layoutMap(this.document);
+    this.scene = layoutMap(this.document, this.viewMode === '3d' ? 'center' : this.document.layout);
     this.nodeIndex = new Map<string, CanvasNode>();
     this.scene.nodes.forEach((node: CanvasNode): void => { this.nodeIndex.set(node.id, node); });
     this.rebuildSelectionPath();
@@ -232,6 +232,7 @@ export struct MindMapCanvas {
 
   @Monitor('viewMode')
   refreshViewMode(): void {
+    this.rebuildScene();
     this.resetRotation();
     this.needsFit = true;
     this.fit();
@@ -448,23 +449,15 @@ export struct MindMapCanvas {
       ctx.strokeStyle = onBranch ? palette.accent : palette.connector;
       ctx.lineWidth = (onBranch ? 2.6 : 1.8) * averageScale;
       ctx.beginPath();
-      if (this.document.layout === 'down') {
-        const startX: number = parentProjected.x;
-        const startY: number = parentProjected.y + parentProjected.height / 2;
-        const endX: number = item.x;
-        const endY: number = item.y - item.height / 2;
-        const middle: number = (startY + endY) / 2;
-        ctx.moveTo(startX, startY);
-        ctx.bezierCurveTo(startX, middle, endX, middle, endX, endY);
-      } else {
-        const startX: number = parentProjected.x + parentProjected.width / 2;
-        const startY: number = parentProjected.y;
-        const endX: number = item.x - item.width / 2;
-        const endY: number = item.y;
-        const middle: number = (startX + endX) / 2;
-        ctx.moveTo(startX, startY);
-        ctx.bezierCurveTo(middle, startY, middle, endY, endX, endY);
-      }
+      const leftSide: boolean = item.node.side === 'left';
+      const startX: number = leftSide ? parentProjected.x - parentProjected.width / 2
+        : parentProjected.x + parentProjected.width / 2;
+      const startY: number = parentProjected.y;
+      const endX: number = leftSide ? item.x + item.width / 2 : item.x - item.width / 2;
+      const endY: number = item.y;
+      const middle: number = (startX + endX) / 2;
+      ctx.moveTo(startX, startY);
+      ctx.bezierCurveTo(middle, startY, middle, endY, endX, endY);
       ctx.stroke();
     });
     const ordered: ProjectedNode[] = projected.slice().sort((a: ProjectedNode, b: ProjectedNode) => b.z - a.z);

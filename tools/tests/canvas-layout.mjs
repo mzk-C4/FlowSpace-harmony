@@ -360,6 +360,35 @@ function projectedFits(c) {
   }
 }
 
+test('centered layout puts the root at the scene center, splits branches both ways and keeps cards apart', () => {
+  for (const count of [10, 200, 500]) {
+    const doc = document(count);
+    const scene = layoutMap(doc, 'center');
+    const root = scene.nodes.find(node => node.id === doc.rootId);
+    assert.ok(Math.abs(root.x + root.width / 2 - scene.width / 2) < 1e-6, 'root should be horizontally centered');
+    assert.ok(Math.abs(root.y + root.height / 2 - scene.height / 2) < 1e-6, 'root should be vertically centered');
+    assertNoOverlap(scene);
+    if (count === 10) {
+      const children = scene.nodes.filter(node => node.parentId === doc.rootId);
+      const rootCenter = root.x + root.width / 2;
+      assert.ok(children.some(node => node.x + node.width / 2 > rootCenter), 'some branches grow right');
+      assert.ok(children.some(node => node.x + node.width / 2 < rootCenter), 'some branches grow left');
+    }
+  }
+});
+
+test('3D orbits around the centered root at the identity orientation', () => {
+  const c = new MindMapCanvas();
+  c.document = document(10);
+  c.viewMode = '3d';
+  c.setOrientation(0, 0);
+  c.rebuildScene();
+  const root = c.scene.nodes.find(node => node.id === c.document.rootId);
+  const projected = c.projectNode(root, c.projection());
+  assert.ok(Math.abs(projected.x) < 1e-6 && Math.abs(projected.y) < 1e-6,
+    'root should sit at the orbit origin');
+});
+
 test('3D projection recedes deeper levels at the identity orientation', () => {
   const c = new MindMapCanvas();
   c.document = document(20);

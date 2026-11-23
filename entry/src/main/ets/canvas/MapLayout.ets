@@ -12,6 +12,7 @@ export interface CanvasNode {
   childCount: number;
   hiddenCount: number;
   depth: number;
+  side: string;
 }
 
 export interface MapScene {
@@ -44,6 +45,12 @@ interface BoxSize {
   lines: string[];
 }
 
+interface CenterInfo {
+  span: number;
+  childTotal: number;
+  children: MindMapNode[];
+}
+
 function nodeSize(text: string): BoxSize {
   const lines: string[] = nodeLines(text);
   let widest: number = 0;
@@ -56,7 +63,7 @@ function nodeSize(text: string): BoxSize {
 }
 
 // The domain tree owns the order. All positions and label measurements belong to the view.
-export function layoutMap(doc: MindMapDocument): MapScene {
+export function layoutMap(doc: MindMapDocument, mode: string = doc.layout): MapScene {
   const children: Map<string, MindMapNode[]> = new Map<string, MindMapNode[]>();
   const sizes: Map<string, BoxSize> = new Map<string, BoxSize>();
   doc.nodes.forEach((node: MindMapNode) => {
@@ -68,12 +75,98 @@ export function layoutMap(doc: MindMapDocument): MapScene {
   children.forEach((list: MindMapNode[]) => list.sort((a: MindMapNode, b: MindMapNode) => a.order - b.order));
   const root: MindMapNode | undefined = doc.nodes.find((node: MindMapNode) => node.id === doc.rootId);
   if (!root) { return { nodes: [], width: 120, height: 80 }; }
+  const hidden: Map<string, number> = countDescendants(children);
+  if (mode === 'center') { return layoutCentered(root, children, sizes, hidden); }
   const scene: MapScene = { nodes: [], width: 0, height: 0 };
   const spans: Map<string, number> = new Map<string, number>();
-  const hidden: Map<string, number> = countDescendants(children);
-  const down: boolean = doc.layout === 'down';
+  const down: boolean = mode === 'down';
   measureBranch(root, children, sizes, spans, down, 0);
   placeBranch(root, children, sizes, spans, hidden, scene, down, 16, 16, 0);
+  return scene;
+}
+
+// 3D uses a symmetric two-sided layout so the root stays at the orbit center.
+function layoutCentered(root: MindMapNode, children: Map<string, MindMapNode[]>,
+  sizes: Map<string, BoxSize>, hidden: Map<string, number>): MapScene {
+  const scene: MapScene = { nodes: [], width: 0, height: 0 };
+  const info: Map<string, CenterInfo> = new Map<string, CenterInfo>();
+  const measure = (node: MindMapNode, depth: number): number => {
+    const size: BoxSize = sizes.get(node.id) as BoxSize;
+    const kids: MindMapNode[] = node.collapsed || depth >= 8 ? [] : children.get(node.id) || [];
+    let total: number = 0;
+    kids.forEach((child: MindMapNode) => { total += measure(child, depth + 1) + 16; });
+    const childTotal: number = kids.length > 0 ? total - 16 : 0;
+    const span: number = Math.max(size.height, childTotal);
+    info.set(node.id, { span: span, childTotal: childTotal, children: kids });
+    return span;
+  };
+  const makeBox = (node: MindMapNode, depth: number, cx: number, cy: number, side: string): void => {
+    const size: BoxSize = sizes.get(node.id) as BoxSize;
+    const all: MindMapNode[] = children.get(node.id) || [];
+    scene.nodes.push({ id: node.id, parentId: node.parentId,
+      x: cx - size.width / 2, y: cy - size.height / 2, width: size.width, height: size.height,
+      lines: size.lines, collapsed: node.collapsed, childCount: all.length,
+      hiddenCount: node.collapsed ? (hidden.get(node.id) || 0) : 0, depth: depth, side: side });
+  };
+  const place = (node: MindMapNode, depth: number, cx: number, cy: number, side: string): void => {
+    const item: CenterInfo = info.get(node.id) as CenterInfo;
+    makeBox(node, depth, cx, cy, side);
+    if (item.children.length === 0) { return; }
+    const size: BoxSize = sizes.get(node.id) as BoxSize;
+    let cursor: number = cy - item.childTotal / 2;
+    item.children.forEach((child: MindMapNode) => {
+      const childInfo: CenterInfo = info.get(child.id) as CenterInfo;
+      const childSize: BoxSize = sizes.get(child.id) as BoxSize;
+      const childCy: number = cursor + childInfo.span / 2;
+      const childCx: number = side === 'right' ? cx + size.width / 2 + 30 + childSize.width / 2
+        : cx - size.width / 2 - 30 - childSize.width / 2;
+      place(child, depth + 1, childCx, childCy, side);
+      cursor += childInfo.span + 16;
+    });
+  };
+  const rootSize: BoxSize = sizes.get(root.id) as BoxSize;
+  const list: MindMapNode[] = children.get(root.id) || [];
+  const right: MindMapNode[] = [];
+  const left: MindMapNode[] = [];
+  list.forEach((child: MindMapNode, index: number) => { (index % 2 === 0 ? right : left).push(child); });
+  list.forEach((child: MindMapNode) => { measure(child, 1); });
+  const sideSpan = (items: MindMapNode[]): number => {
+    let total: number = 0;
+    items.forEach((child: MindMapNode) => { total += (info.get(child.id) as CenterInfo).span; });
+    return total + Math.max(0, items.length - 1) * 16;
+  };
+  const rightSpan: number = sideSpan(right);
+  const leftSpan: number = sideSpan(left);
+  makeBox(root, 0, 0, 0, '');
+  let cursor: number = -rightSpan / 2;
+  right.forEach((child: MindMapNode) => {
+    const childInfo: CenterInfo = info.get(child.id) as CenterInfo;
+    const childSize: BoxSize = sizes.get(child.id) as BoxSize;
+    place(child, 1, rootSize.width / 2 + 30 + childSize.width / 2, cursor + childInfo.span / 2, 'right');
+    cursor += childInfo.span + 16;
+  });
+  cursor = -leftSpan / 2;
+  left.forEach((child: MindMapNode) => {
+    const childInfo: CenterInfo = info.get(child.id) as CenterInfo;
+    const childSize: BoxSize = sizes.get(child.id) as BoxSize;
+    place(child, 1, -rootSize.width / 2 - 30 - childSize.width / 2, cursor + childInfo.span / 2, 'left');
+    cursor += childInfo.span + 16;
+  });
+  let minX: number = Infinity;
+  let minY: number = Infinity;
+  let maxX: number = -Infinity;
+  let maxY: number = -Infinity;
+  scene.nodes.forEach((box: CanvasNode) => {
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+    maxX = Math.max(maxX, box.x + box.width);
+    maxY = Math.max(maxY, box.y + box.height);
+  });
+  const halfWidth: number = Math.max(-minX, maxX) + 16;
+  const halfHeight: number = Math.max(-minY, maxY) + 16;
+  scene.nodes.forEach((box: CanvasNode) => { box.x += halfWidth; box.y += halfHeight; });
+  scene.width = halfWidth * 2;
+  scene.height = halfHeight * 2;
   return scene;
 }
 
@@ -113,7 +206,8 @@ function placeBranch(node: MindMapNode, children: Map<string, MindMapNode[]>, si
   const box: CanvasNode = { id: node.id, parentId: node.parentId,
     x: down ? cross + (span - size.width) / 2 : axis, y: down ? axis : cross + (span - size.height) / 2,
     width: size.width, height: size.height, lines: size.lines, collapsed: node.collapsed,
-    childCount: allChildren.length, hiddenCount: node.collapsed ? (hidden.get(node.id) || 0) : 0, depth: depth };
+    childCount: allChildren.length, hiddenCount: node.collapsed ? (hidden.get(node.id) || 0) : 0,
+    depth: depth, side: '' };
   scene.nodes.push(box);
   scene.width = Math.max(scene.width, box.x + box.width + 16);
   scene.height = Math.max(scene.height, box.y + box.height + 16);

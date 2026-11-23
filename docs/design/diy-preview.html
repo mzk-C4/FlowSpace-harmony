@@ -130,7 +130,8 @@
         <button data-mode="3d">3D</button>
       </div>
       <div class="row">
-        <button data-layout="right" class="active">向右布局</button>
+        <button data-layout="center" class="active">居中起点</button>
+        <button data-layout="right">向右布局</button>
         <button data-layout="down">向下布局</button>
       </div>
       <div class="row">
@@ -142,7 +143,7 @@
     </div>
     <div class="meta">
       <div>视图：<b id="meta-mode">2D</b></div>
-      <div>布局：<b id="meta-layout">向右</b></div>
+      <div>布局：<b id="meta-layout">居中</b></div>
       <div>缩放：<b id="meta-zoom">—</b></div>
       <div>选中：<b id="meta-selected">信号表征</b></div>
     </div>
@@ -218,7 +219,7 @@
   const state = {
     sample: params.get('sample') === 'complex' ? 'complex' : 'simple',
     mode: params.get('mode') === '3d' ? '3d' : '2d',
-    layout: params.get('layout') === 'down' ? 'down' : 'right',
+    layout: params.get('layout') === 'down' || params.get('layout') === 'right' ? params.get('layout') : 'center',
     selectedId: 'signal',
     zoom: 1,
     panX: 0,
@@ -281,6 +282,7 @@
       return total;
     };
     for (const id of children.keys()) count(id);
+    if (doc.layout === 'center') return layoutCentered(root, children, sizes, counts);
     const scene = {nodes: [], width: 0, height: 0};
     const spans = new Map();
     const down = doc.layout === 'down';
@@ -303,7 +305,7 @@
         y: down ? axis : cross + (span - size.h) / 2,
         w: size.w, h: size.h, lines: size.lines, collapsed: node.collapsed,
         childCount: all.length, hiddenCount: node.collapsed ? (counts.get(node.id) || 0) : 0,
-        image: node.image, note: node.note, tag: node.tag
+        image: node.image, note: node.note, tag: node.tag, side: ''
       };
       scene.nodes.push(box);
       scene.width = Math.max(scene.width, box.x + box.w + 16);
@@ -317,6 +319,86 @@
     };
     measure(root, 0);
     place(root, 0, 16, 16);
+    return scene;
+  }
+
+  function layoutCentered(root, children, sizes, counts) {
+    const scene = {nodes: [], width: 0, height: 0};
+    const info = new Map();
+    const measure = (node, depth) => {
+      const size = sizes.get(node.id);
+      const kids = node.collapsed || depth >= 8 ? [] : (children.get(node.id) || []);
+      let total = 0;
+      for (const child of kids) total += measure(child, depth + 1) + 16;
+      const childTotal = kids.length ? total - 16 : 0;
+      const span = Math.max(size.h, childTotal);
+      info.set(node.id, {span, childTotal, kids, size});
+      return span;
+    };
+    const makeBox = (node, depth, cx, cy, side) => {
+      const size = sizes.get(node.id);
+      const all = children.get(node.id) || [];
+      scene.nodes.push({
+        id: node.id, parentId: node.parentId, text: node.text, depth,
+        x: cx - size.w / 2, y: cy - size.h / 2, w: size.w, h: size.h, lines: size.lines,
+        collapsed: node.collapsed, childCount: all.length,
+        hiddenCount: node.collapsed ? (counts.get(node.id) || 0) : 0,
+        image: node.image, note: node.note, tag: node.tag, side
+      });
+    };
+    const place = (node, depth, cx, cy, side) => {
+      const item = info.get(node.id);
+      makeBox(node, depth, cx, cy, side);
+      if (!item.kids.length) return;
+      let cursor = cy - item.childTotal / 2;
+      for (const child of item.kids) {
+        const childInfo = info.get(child.id);
+        const childCy = cursor + childInfo.span / 2;
+        const childCx = side === 'right'
+          ? cx + item.size.w / 2 + 30 + childInfo.size.w / 2
+          : cx - item.size.w / 2 - 30 - childInfo.size.w / 2;
+        place(child, depth + 1, childCx, childCy, side);
+        cursor += childInfo.span + 16;
+      }
+    };
+    const rootSize = sizes.get(root.id);
+    const list = (children.get(root.id) || []).slice();
+    const right = [];
+    const left = [];
+    list.forEach((child, index) => { (index % 2 === 0 ? right : left).push(child); });
+    for (const child of list) measure(child, 1);
+    const sideSpan = items => items.reduce((sum, child) => sum + info.get(child.id).span, 0) +
+      Math.max(0, items.length - 1) * 16;
+    const rightSpan = sideSpan(right);
+    const leftSpan = sideSpan(left);
+    makeBox(root, 0, 0, 0, '');
+    let cursor = -rightSpan / 2;
+    for (const child of right) {
+      const childInfo = info.get(child.id);
+      place(child, 1, rootSize.w / 2 + 30 + childInfo.size.w / 2, cursor + childInfo.span / 2, 'right');
+      cursor += childInfo.span + 16;
+    }
+    cursor = -leftSpan / 2;
+    for (const child of left) {
+      const childInfo = info.get(child.id);
+      place(child, 1, -rootSize.w / 2 - 30 - childInfo.size.w / 2, cursor + childInfo.span / 2, 'left');
+      cursor += childInfo.span + 16;
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const box of scene.nodes) {
+      minX = Math.min(minX, box.x);
+      minY = Math.min(minY, box.y);
+      maxX = Math.max(maxX, box.x + box.w);
+      maxY = Math.max(maxY, box.y + box.h);
+    }
+    const halfW = Math.max(-minX, maxX) + 16;
+    const halfH = Math.max(-minY, maxY) + 16;
+    for (const box of scene.nodes) { box.x += halfW; box.y += halfH; }
+    scene.width = halfW * 2;
+    scene.height = halfH * 2;
     return scene;
   }
 
@@ -457,7 +539,12 @@
         const sx = a.x, sy = a.y + a.h / 2, ex = b.x, ey = b.y - b.h / 2, mid = (sy + ey) / 2;
         d = `M${sx} ${sy} C${sx} ${mid} ${ex} ${mid} ${ex} ${ey}`;
       } else {
-        const sx = a.x + a.w / 2, sy = a.y, ex = b.x - b.w / 2, ey = b.y, mid = (sx + ex) / 2;
+        const leftSide = node.side === 'left';
+        const sx = leftSide ? a.x - a.w / 2 : a.x + a.w / 2;
+        const sy = a.y;
+        const ex = leftSide ? b.x + b.w / 2 : b.x - b.w / 2;
+        const ey = b.y;
+        const mid = (sx + ex) / 2;
         d = `M${sx} ${sy} C${mid} ${sy} ${mid} ${ey} ${ex} ${ey}`;
       }
       const width = (onBranch ? 2.6 : 1.8) * state.zoom * ((a.scale + b.scale) / 2);
@@ -565,7 +652,7 @@
     document.getElementById('status').textContent = '已保存 · ' + scene.nodes.length + ' 个节点';
     zoomLabel.textContent = state.zoom > 0 ? (Math.round(state.zoom * 1000) / 10) + '%' : '—';
     document.getElementById('meta-mode').textContent = state.mode === '3d' ? '3D' : '2D';
-    document.getElementById('meta-layout').textContent = state.layout === 'down' ? '向下' : '向右';
+    document.getElementById('meta-layout').textContent = state.layout === 'down' ? '向下' : state.layout === 'center' ? '居中' : '向右';
     document.getElementById('meta-zoom').textContent = zoomLabel.textContent;
     document.getElementById('meta-selected').textContent = selectedNode.text;
     document.getElementById('mode-btn').textContent = state.mode === '3d' ? '3D' : '2D';
@@ -584,7 +671,9 @@
   }
   function settleView() {
     render();
-    if (state.sample === 'complex') focusOn(state.selectedId, 0.62);
+    if (state.sample === 'complex') {
+      focusOn(state.layout === 'center' ? rootId : state.selectedId, 0.62);
+    }
   }
   function setSample(sample) {
     state.sample = sample;
