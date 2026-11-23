@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;width:720px;height:808px;overflow:hidden;background:#fff;
+    font-family:"HarmonyOS Sans SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#3A3A44}
+  .row{display:flex;width:720px}
+  .col{width:360px}
+  .cap{height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
+    background:#F2F2F6;border-bottom:.5px solid #DADAE2}
+  iframe{display:block;width:360px;height:780px;border:0}
+  .col + .col{border-left:1px solid #DADAE2}
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="col"><div class="cap">2D · 平面画布</div><iframe src="diy-preview.html?mode=2d&amp;embed=1" title="2D 预览"></iframe></div>
+  <div class="col"><div class="cap">3D · 旋转透视（-20° / 20°）</div><iframe src="diy-preview.html?mode=3d&amp;embed=1" title="3D 预览"></iframe></div>
+</div>
+</body>
+</html>

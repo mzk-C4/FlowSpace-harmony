@@ -360,10 +360,12 @@ function projectedFits(c) {
   }
 }
 
-test('3D projection recedes deeper levels and keeps the root closest', () => {
+test('3D projection recedes deeper levels at zero tilt', () => {
   const c = new MindMapCanvas();
   c.document = document(20);
   c.viewMode = '3d';
+  c.yaw = 0;
+  c.pitch = 0;
   c.rebuildScene();
   const p = c.projection();
   const root = c.projectNode(c.scene.nodes[0], p);
@@ -371,15 +373,40 @@ test('3D projection recedes deeper levels and keeps the root closest', () => {
   const leaf = c.projectNode(c.scene.nodes.find(node => node.depth === 2), p);
   assert.ok(root.scale > child.scale && child.scale > leaf.scale, 'deeper cards should appear smaller');
   assert.ok(root.scale <= 1.4 && leaf.scale > 0.35, 'projection should stay legible');
-  assert.notEqual(child.x, child.node.x + child.node.width / 2, '3D cards should shift away from their 2D center');
+});
+
+test('3D yaw and pitch rotate the scene in perspective', () => {
+  const c = new MindMapCanvas();
+  c.document = document(20);
+  c.viewMode = '3d';
+  c.yaw = 0;
+  c.pitch = 0;
+  c.rebuildScene();
+  const node = c.scene.nodes.find(item => item.depth === 1);
+  const flat = c.projectNode(node, c.projection());
+  c.yaw = 0.6;
+  const yawed = c.projectNode(node, c.projection());
+  assert.notEqual(yawed.x, flat.x, 'yaw should move the projected card horizontally');
+  c.pitch = 0.7;
+  const pitched = c.projectNode(node, c.projection());
+  assert.notEqual(pitched.y, yawed.y, 'pitch should move the projected card vertically');
+  assert.notEqual(pitched.scale, flat.scale, 'rotation should change perspective scale');
+  assert.ok(Number.isFinite(pitched.x) && Number.isFinite(pitched.y) && pitched.scale > 0.2);
 });
 
 for (const width of [320, 360, 480]) {
   test(`3D fit includes every projected 200/500 node card in ${width}vp`, () => {
-    for (const count of [200, 500]) for (const orientation of ['right', 'down']) {
+    const angles = [
+      { yaw: -0.35, pitch: 0.35 },
+      { yaw: 1.1, pitch: 0.7 },
+      { yaw: -1.2, pitch: -0.6 },
+    ];
+    for (const count of [200, 500]) for (const orientation of ['right', 'down']) for (const angle of angles) {
       const c = new MindMapCanvas();
       c.document = document(count, orientation);
       c.viewMode = '3d';
+      c.yaw = angle.yaw;
+      c.pitch = angle.pitch;
       c.rebuildScene();
       c.viewportWidth = width;
       c.viewportHeight = 440;
@@ -389,10 +416,12 @@ for (const width of [320, 360, 480]) {
   });
 }
 
-test('3D selectAt chooses the projected card under the finger and ignores empty space', () => {
+test('3D selectAt chooses the projected card after rotation and ignores empty space', () => {
   const c = new MindMapCanvas();
   c.document = document(200);
   c.viewMode = '3d';
+  c.yaw = 0.75;
+  c.pitch = 0.5;
   c.rebuildScene();
   c.viewportWidth = 360;
   c.viewportHeight = 440;
@@ -410,6 +439,55 @@ test('3D selectAt chooses the projected card under the finger and ignores empty 
   selected = 'unchanged';
   c.selectAt(-1e9, -1e9);
   assert.equal(selected, 'unchanged');
+});
+
+test('3D default rotation keeps the ten-node example cards from intersecting', () => {
+  const example = JSON.parse(readFileSync(join(root, 'entry/src/main/resources/rawfile/example-mindmap.json'), 'utf8')).document;
+  const c = new MindMapCanvas();
+  c.document = example;
+  c.viewMode = '3d';
+  c.rebuildScene();
+  const p = c.projection();
+  const items = c.scene.nodes.map(node => c.projectNode(node, p));
+  for (let i = 0; i < items.length; i++) {
+    const a = items[i];
+    for (let j = i + 1; j < items.length; j++) {
+      const b = items[j];
+      const overlapX = Math.min(a.x + a.width / 2, b.x + b.width / 2) - Math.max(a.x - a.width / 2, b.x - b.width / 2);
+      const overlapY = Math.min(a.y + a.height / 2, b.y + b.height / 2) - Math.max(a.y - a.height / 2, b.y - b.height / 2);
+      assert.ok(overlapX <= 1 || overlapY <= 1, `3D cards overlap: ${a.node.id} and ${b.node.id}`);
+    }
+  }
+});
+
+test('one-finger 3D rotation changes yaw/pitch, clamps pitch and reset restores the fitted view', () => {
+  const c = controller(document(200));
+  c.viewMode = '3d';
+  c.refreshViewMode();
+  const yaw0 = c.yaw;
+  const pitch0 = c.pitch;
+  c.beginRotate();
+  c.updateRotate(120, -60);
+  assert.notEqual(c.yaw, yaw0);
+  assert.ok(c.pitch < pitch0);
+  c.beginRotate();
+  c.updateRotate(0, 100000);
+  assert.ok(c.pitch <= 1.0);
+  c.beginRotate();
+  c.updateRotate(0, -100000);
+  assert.ok(c.pitch >= -1.0);
+  c.beginRotate();
+  const savedYaw = c.yaw;
+  const savedPitch = c.pitch;
+  c.updateRotate(50, 50);
+  c.cancelRotate();
+  assert.equal(c.yaw, savedYaw);
+  assert.equal(c.pitch, savedPitch);
+  c.resetView();
+  assert.equal(c.yaw, yaw0);
+  assert.equal(c.pitch, pitch0);
+  assert.equal(c.needsFit, false);
+  projectedFits(c);
 });
 
 test('3D painting draws extruded cards, shadows and the accent branch path', () => {

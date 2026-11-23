@@ -60,11 +60,18 @@
   .controls button{height:44px;border:1px solid var(--border);background:var(--surface);color:var(--text);
     border-radius:12px;padding:0 14px;font-size:13px;cursor:pointer}
   .controls button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .slider-row{display:grid;grid-template-columns:64px 1fr 44px;align-items:center;gap:8px;font-size:12px;color:#555560}
+  .slider-row input{width:100%;accent-color:var(--accent)}
+  .slider-row b{text-align:right;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
   .meta{font-size:12px;line-height:1.9;color:#666671;background:var(--surface);border:1px solid var(--border);
     border-radius:14px;padding:12px 14px;margin-top:14px}
   .meta b{color:var(--text);font-weight:600}
   .notice{font-size:11px;line-height:1.7;color:#777782;margin-top:12px}
   @media (max-width:760px){.wrap{padding:14px;gap:16px}.side{width:360px}}
+  body.embed{background:#fff}
+  body.embed .wrap{padding:0;gap:0;display:block}
+  body.embed .side,body.embed .caption{display:none}
+  body.embed .phone{border-radius:0;box-shadow:none}
 </style>
 </head>
 <body>
@@ -109,7 +116,7 @@
 
   <aside class="side">
     <h2>2D / 3D 画布预览</h2>
-    <p>这是按当前布局与投影参数复刻的交互预览。拖动画布平移，滚轮缩放；点击节点选中，点击右侧圆点折叠/展开分支。</p>
+    <p>2D 单指拖动平移；3D 单指拖动旋转视角，滚轮缩放。点击节点选中，点击右侧圆点折叠/展开分支。</p>
     <div class="controls">
       <div class="row">
         <button data-mode="2d" class="active">2D</button>
@@ -121,16 +128,28 @@
       </div>
       <div class="row">
         <button id="fit2">适应画布</button>
+        <button id="reset-view">复位视角</button>
         <button id="collapse-demo">折叠「系统性质」</button>
+      </div>
+      <div class="slider-row">
+        <label for="yaw-range">水平旋转</label>
+        <input id="yaw-range" type="range" min="-180" max="180" step="1" value="-20">
+        <b id="yaw-value">-20°</b>
+      </div>
+      <div class="slider-row">
+        <label for="pitch-range">俯仰</label>
+        <input id="pitch-range" type="range" min="-60" max="60" step="1" value="20">
+        <b id="pitch-value">20°</b>
       </div>
     </div>
     <div class="meta">
       <div>视图：<b id="meta-mode">2D</b></div>
       <div>布局：<b id="meta-layout">向右</b></div>
+      <div>视角：<b id="meta-rotation">—</b></div>
       <div>缩放：<b id="meta-zoom">—</b></div>
       <div>选中：<b id="meta-selected">信号表征</b></div>
     </div>
-    <p class="notice">2D 使用平面树布局；3D 使用分层卡片：层级缩小、右下错层、阴影与厚度面，导出仍为完整 2D 树。此页面不连接模型，不替代原生设备验收。</p>
+    <p class="notice">2D 使用平面树布局；3D 使用透视相机：卡片按 yaw/pitch 旋转、按相机深度缩放并保留阴影与厚度面。卡片保持正面朝向（billboard），导出仍为完整 2D 树。此页面不连接模型，不替代原生设备验收。</p>
   </aside>
 </div>
 
@@ -149,15 +168,22 @@
     {id:'sampling',parentId:'transform',order:1,text:'采样',collapsed:false}
   ];
   const rootId = 'signals';
+  const DEFAULT_YAW = -0.35;
+  const DEFAULT_PITCH = 0.35;
   const params = new URLSearchParams(location.search);
+  const yawParam = Number(params.get('yaw'));
+  const pitchParam = Number(params.get('pitch'));
   const state = {
     mode: params.get('mode') === '3d' ? '3d' : '2d',
     layout: params.get('layout') === 'down' ? 'down' : 'right',
     selectedId: 'signal',
     zoom: 1,
     panX: 0,
-    panY: 0
+    panY: 0,
+    yaw: Number.isFinite(yawParam) && params.has('yaw') ? yawParam * Math.PI / 180 : DEFAULT_YAW,
+    pitch: Number.isFinite(pitchParam) && params.has('pitch') ? pitchParam * Math.PI / 180 : DEFAULT_PITCH
   };
+  if (params.get('embed') === '1') document.body.classList.add('embed');
 
   const canvas = document.getElementById('canvas');
   const edges = document.getElementById('edges');
@@ -246,20 +272,34 @@
     return scene;
   }
 
-  function project(scene, node) {
-    const depth = node.depth;
-    const scale = Math.max(0.5, 1 - depth * 0.06);
+  function camera(scene) {
+    const size = Math.max(1, scene.width, scene.height);
     return {
-      x: (node.x + node.w / 2 - scene.width / 2) + depth * 20,
-      y: (node.y + node.h / 2 - scene.height / 2) + depth * 24,
-      w: node.w * scale, h: node.h * scale, scale, z: depth
+      cx: scene.width / 2, cy: scene.height / 2,
+      cosYaw: Math.cos(state.yaw), sinYaw: Math.sin(state.yaw),
+      cosPitch: Math.cos(state.pitch), sinPitch: Math.sin(state.pitch),
+      distance: Math.max(2200, size * 2 + 1000), depthStep: 70
     };
+  }
+  function project(scene, node, cameraState) {
+    const view = cameraState || camera(scene);
+    const fan = 1 + Math.min(0.5, node.depth * 0.15);
+    const x = (node.x + node.w / 2 - view.cx) * fan;
+    const y = (node.y + node.h / 2 - view.cy) * fan;
+    const z = node.depth * view.depthStep;
+    const x1 = x * view.cosYaw + z * view.sinYaw;
+    const z1 = -x * view.sinYaw + z * view.cosYaw;
+    const y1 = y * view.cosPitch - z1 * view.sinPitch;
+    const z2 = y * view.sinPitch + z1 * view.cosPitch;
+    const scale = Math.max(0.2, Math.min(2.5, view.distance / (view.distance + z2)));
+    return {x: x1 * scale, y: y1 * scale, w: node.w * scale, h: node.h * scale, scale, z: z2};
   }
   function boundsOf(scene) {
     if (state.mode === '2d') return {minX: 0, minY: 0, w: scene.width, h: scene.height};
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const cameraState = camera(scene);
     for (const node of scene.nodes) {
-      const item = project(scene, node);
+      const item = project(scene, node, cameraState);
       minX = Math.min(minX, item.x - item.w / 2);
       minY = Math.min(minY, item.y - item.h / 2);
       maxX = Math.max(maxX, item.x + item.w / 2);
@@ -285,9 +325,9 @@
     }
     return path;
   }
-  function screenItem(scene, node) {
+  function screenItem(scene, node, cameraState) {
     if (state.mode === '3d') {
-      const item = project(scene, node);
+      const item = project(scene, node, cameraState);
       return {x: item.x * state.zoom + state.panX, y: item.y * state.zoom + state.panY,
         w: item.w * state.zoom, h: item.h * state.zoom, scale: item.scale, z: item.z};
     }
@@ -305,6 +345,7 @@
   function render() {
     const rect = canvas.getBoundingClientRect();
     const scene = layoutMap({nodes, rootId, layout: state.layout});
+    const view = state.mode === '3d' ? camera(scene) : null;
     if (!state.initialized) { fit(scene); state.initialized = true; }
     const path = selectedPath();
     const byId = new Map(scene.nodes.map(node => [node.id, node]));
@@ -314,8 +355,8 @@
     for (const node of scene.nodes) {
       const parent = byId.get(node.parentId);
       if (!parent) continue;
-      const a = screenItem(scene, parent);
-      const b = screenItem(scene, node);
+      const a = screenItem(scene, parent, view);
+      const b = screenItem(scene, node, view);
       const onBranch = path.has(node.id) && path.has(parent.id);
       const down = state.layout === 'down';
       let d;
@@ -331,13 +372,18 @@
     }
     edges.innerHTML = edgeMarkup;
 
-    const ordered = scene.nodes.slice().sort((a, b) => {
-      if (state.mode === '2d') return a.depth - b.depth;
-      return b.depth - a.depth;
-    });
+    const ordered = scene.nodes.slice();
+    if (state.mode === '3d') {
+      ordered.sort((a, b) => project(scene, b, view).z - project(scene, a, view).z);
+    } else {
+      ordered.sort((a, b) => a.depth - b.depth);
+    }
+    const selectedIndex = ordered.findIndex(node => node.id === state.selectedId);
+    if (selectedIndex >= 0) ordered.push(ordered.splice(selectedIndex, 1)[0]);
+
     cards.innerHTML = '';
     for (const node of ordered) {
-      const item = screenItem(scene, node);
+      const item = screenItem(scene, node, view);
       const selected = node.id === state.selectedId;
       const onBranch = path.has(node.id);
       const isRoot = node.depth === 0;
@@ -346,22 +392,21 @@
       const strokeWidth = (isRoot ? (selected ? 2.5 : 1) : selected ? 2.5 : onBranch ? 1.8 : node.depth === 1 ? 1.2 : 1) * state.zoom * item.scale;
       const radius = 14 * state.zoom * item.scale;
       const lift = state.mode === '3d' ? 10 * state.zoom * item.scale : 0;
-      const zIndex = 1000 - node.depth * 10 + (selected ? 500 : 0);
 
       if (state.mode === '3d') {
         const shadow = document.createElement('div');
         shadow.className = 'card';
-        shadow.style.cssText = `left:${item.x - item.w / 2 + 5 * item.scale * state.zoom}px;top:${item.y - item.h / 2 + lift + 5 * item.scale * state.zoom}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:rgba(16,17,20,.14);z-index:${zIndex};pointer-events:none`;
+        shadow.style.cssText = `left:${item.x - item.w / 2 + 5 * item.scale * state.zoom}px;top:${item.y - item.h / 2 + lift + 5 * item.scale * state.zoom}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:rgba(16,17,20,.14);pointer-events:none`;
         cards.appendChild(shadow);
         const side = document.createElement('div');
         side.className = 'card';
-        side.style.cssText = `left:${item.x - item.w / 2 + lift * .55}px;top:${item.y - item.h / 2 + lift}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${colorShade(fill, 0.62)};z-index:${zIndex + 1};pointer-events:none`;
+        side.style.cssText = `left:${item.x - item.w / 2 + lift * .55}px;top:${item.y - item.h / 2 + lift}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${colorShade(fill, 0.62)};pointer-events:none`;
         cards.appendChild(side);
       }
       const card = document.createElement('div');
       card.className = 'card';
       card.dataset.node = node.id;
-      card.style.cssText = `left:${item.x - item.w / 2}px;top:${item.y - item.h / 2}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${fill};border:${strokeWidth}px solid ${stroke};color:${isRoot ? '#FFFFFF' : '#1D1D1F'};font-size:${Math.max(7, 15 * state.zoom * item.scale)}px;font-weight:${isRoot ? 700 : selected ? 500 : 400};z-index:${zIndex + 2}`;
+      card.style.cssText = `left:${item.x - item.w / 2}px;top:${item.y - item.h / 2}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${fill};border:${strokeWidth}px solid ${stroke};color:${isRoot ? '#FFFFFF' : '#1D1D1F'};font-size:${Math.max(7, 15 * state.zoom * item.scale)}px;font-weight:${isRoot ? 700 : selected ? 500 : 400}`;
       const label = document.createElement('span');
       label.className = 'label';
       label.textContent = node.lines.join('\n');
@@ -377,7 +422,7 @@
         const badge = document.createElement('div');
         badge.className = 'badge';
         badge.textContent = node.collapsed ? (node.hiddenCount > 99 ? '+99' : '+' + node.hiddenCount) : '−';
-        badge.style.cssText = `left:${item.x + item.w / 2 - 11 * item.scale * state.zoom}px;top:${item.y - 11 * item.scale * state.zoom}px;width:${22 * item.scale * state.zoom}px;height:${22 * item.scale * state.zoom}px;font-size:${Math.max(6, (node.collapsed ? 10 : 14) * state.zoom * item.scale)}px;z-index:${zIndex + 3}`;
+        badge.style.cssText = `left:${item.x + item.w / 2 - 11 * item.scale * state.zoom}px;top:${item.y - 11 * item.scale * state.zoom}px;width:${22 * item.scale * state.zoom}px;height:${22 * item.scale * state.zoom}px;font-size:${Math.max(6, (node.collapsed ? 10 : 14) * state.zoom * item.scale)}px`;
         badge.addEventListener('click', event => {
           event.stopPropagation();
           const target = nodes.find(n => n.id === node.id);
@@ -398,6 +443,13 @@
     document.getElementById('meta-layout').textContent = state.layout === 'down' ? '向下' : '向右';
     document.getElementById('meta-zoom').textContent = zoomLabel.textContent;
     document.getElementById('meta-selected').textContent = selectedNode.text;
+    const yawDeg = Math.round(state.yaw * 180 / Math.PI);
+    const pitchDeg = Math.round(state.pitch * 180 / Math.PI);
+    document.getElementById('meta-rotation').textContent = state.mode === '3d' ? `${yawDeg}° / ${pitchDeg}°` : '2D 无旋转';
+    document.getElementById('yaw-range').value = String(yawDeg);
+    document.getElementById('pitch-range').value = String(pitchDeg);
+    document.getElementById('yaw-value').textContent = yawDeg + '°';
+    document.getElementById('pitch-value').textContent = pitchDeg + '°';
     document.getElementById('mode-btn').textContent = state.mode === '3d' ? '3D' : '2D';
     document.getElementById('mode-btn').classList.toggle('active', state.mode === '3d');
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
@@ -411,6 +463,8 @@
   }
   function setMode(mode) {
     state.mode = mode;
+    state.yaw = DEFAULT_YAW;
+    state.pitch = DEFAULT_PITCH;
     state.initialized = false;
     state.selectedId = state.selectedId || 'signal';
     updateUrl();
@@ -436,6 +490,20 @@
   document.getElementById('zoom-out').addEventListener('click', () => zoomAt(1 / 1.2, canvas.clientWidth / 2, canvas.clientHeight / 2));
   document.getElementById('fit').addEventListener('click', () => { state.initialized = false; render(); });
   document.getElementById('fit2').addEventListener('click', () => { state.initialized = false; render(); });
+  document.getElementById('reset-view').addEventListener('click', () => {
+    state.yaw = DEFAULT_YAW;
+    state.pitch = DEFAULT_PITCH;
+    state.initialized = false;
+    render();
+  });
+  document.getElementById('yaw-range').addEventListener('input', event => {
+    state.yaw = Number(event.target.value) * Math.PI / 180;
+    render();
+  });
+  document.getElementById('pitch-range').addEventListener('input', event => {
+    state.pitch = Math.max(-1, Math.min(1, Number(event.target.value) * Math.PI / 180));
+    render();
+  });
   document.getElementById('collapse-demo').addEventListener('click', () => {
     const target = nodes.find(node => node.id === 'system');
     target.collapsed = !target.collapsed;
@@ -447,14 +515,21 @@
   let drag = null;
   canvas.addEventListener('pointerdown', event => {
     if (event.target.closest('.card') || event.target.closest('.badge') || event.target.closest('.zoom')) return;
-    drag = {x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY};
+    drag = state.mode === '3d'
+      ? {kind: 'rotate', x: event.clientX, y: event.clientY, yaw: state.yaw, pitch: state.pitch}
+      : {kind: 'pan', x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY};
     canvas.setPointerCapture(event.pointerId);
     canvas.classList.add('dragging');
   });
   canvas.addEventListener('pointermove', event => {
     if (!drag) return;
-    state.panX = drag.panX + event.clientX - drag.x;
-    state.panY = drag.panY + event.clientY - drag.y;
+    if (drag.kind === 'rotate') {
+      state.yaw = drag.yaw + (event.clientX - drag.x) * 0.008;
+      state.pitch = Math.max(-1, Math.min(1, drag.pitch + (event.clientY - drag.y) * 0.006));
+    } else {
+      state.panX = drag.panX + event.clientX - drag.x;
+      state.panY = drag.panY + event.clientY - drag.y;
+    }
     render();
   });
   const endDrag = () => { drag = null; canvas.classList.remove('dragging'); };

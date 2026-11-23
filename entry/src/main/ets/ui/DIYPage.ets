@@ -44,6 +44,7 @@ export struct DIYPage {
   @Local zoomSignal: number = 0;
   @Local zoomPercent: number = 100;
   @Local canvasMode: string = '2d';
+  @Local resetViewSignal: number = 0;
   @Local formError: string = '';
   private editingId: string = '';
   private activeDocument: string = '';
@@ -403,14 +404,14 @@ export struct DIYPage {
       Stack({ alignContent: Alignment.BottomEnd }) {
         MindMapCanvas({ document: this.document, selectedNodeId: this.node().id, fitSignal: this.fitSignal + this.generatedFit,
           appearance: this.appearance, viewMode: this.canvasMode, zoomSignal: this.zoomSignal,
-          onSelect: (id: string) => { this.onSelect(id); },
+          resetViewSignal: this.resetViewSignal, onSelect: (id: string) => { this.onSelect(id); },
           onToggle: (id: string) => { this.send('toggle', '', '', '', id); },
           onZoom: (value: number) => { this.zoomPercent = value; } })
         if (this.document.nodes.length === 1 && !this.candidateSummary && !this.busy) {
           Column() {
             Column({ space: 4 }) {
               Text('从根节点开始').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
-              Text('点选节点后用下方 ＋ 添加分支，打开“继续整理”让 AI 扩展；右下角可切换 2D / 3D。')
+              Text('点选节点后用下方 ＋ 添加分支，打开“继续整理”让 AI 扩展；右下角切换 2D / 3D，3D 单指旋转、双指平移缩放。')
                 .fontSize(13).lineHeight(19).fontColor($r('app.color.fs_muted')).maxLines(2)
             }.alignItems(HorizontalAlign.Start).padding(14).borderRadius(14)
               .backgroundColor($r('app.color.fs_surface')).border({ width: 0.5, color: $r('app.color.fs_border') })
@@ -431,6 +432,12 @@ export struct DIYPage {
           IconButton({ icon: $r('sys.symbol.plus'), label: '放大画布', onActivate: () => { this.zoomSignal++; } })
           Divider().vertical(true).height(20).color($r('app.color.fs_border'))
           IconButton({ icon: $r('sys.symbol.scope'), label: '适应画布', onActivate: () => { this.fitSignal++; } })
+          if (this.canvasMode === '3d') {
+            Divider().vertical(true).height(20).color($r('app.color.fs_border'))
+            Button('复位', { type: ButtonType.Normal }).width(44).height(44).padding(0).fontSize(11)
+              .fontColor($r('app.color.fs_accent')).backgroundColor(Color.Transparent).borderRadius(22)
+              .accessibilityText('重置三维视角').onClick(() => { this.resetViewSignal++; })
+          }
         }.borderRadius(22).backgroundColor($r('app.color.fs_surface'))
           .border({ width: 0.5, color: $r('app.color.fs_border') }).margin(12)
       }.width('100%').layoutWeight(1).clip(true)

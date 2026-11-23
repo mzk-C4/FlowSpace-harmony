@@ -24,6 +24,8 @@ assert.ok(diy.includes("@Local canvasMode: string = '2d'"), 'DIY 缺少 2D/3D �
 const canvas = read(join(root, 'entry/src/main/ets/canvas/MindMapCanvas.ets'));
 assert.ok(canvas.includes("@Param viewMode: string = '2d'"), '画布缺少 viewMode 参数');
 assert.ok(canvas.includes('paint3D('), '画布缺少 3D 绘制入口');
+assert.ok(canvas.includes('beginRotate('), '画布缺少 3D 旋转手势');
+assert.ok(diy.includes('resetViewSignal: this.resetViewSignal'), 'DIY 未接入 3D 复位');
 const build = read(join(root, 'build-profile.json5'));
 assert.ok(build.includes('6.1.1(24)'), '工程未使用 API 24');
 assert.ok(!build.includes('6.1.1(26)'), '仍引用旧 API');

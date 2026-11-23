@@ -19,7 +19,19 @@ interface CanvasPalette {
 interface Projection {
   cx: number;
   cy: number;
+  cosYaw: number;
+  sinYaw: number;
+  cosPitch: number;
+  sinPitch: number;
+  distance: number;
+  depthStep: number;
 }
+
+const DEFAULT_YAW: number = -0.35;
+const DEFAULT_PITCH: number = 0.35;
+const MAX_PITCH: number = 1.0;
+const YAW_PER_PIXEL: number = 0.008;
+const PITCH_PER_PIXEL: number = 0.006;
 
 interface ProjectedNode {
   node: CanvasNode;
@@ -39,6 +51,7 @@ export struct MindMapCanvas {
   @Param zoomSignal: number = 0;
   @Param appearance: string = 'system';
   @Param viewMode: string = '2d';
+  @Param resetViewSignal: number = 0;
   @Event onSelect: (id: string) => void = () => {};
   @Event onToggle: (id: string) => void = () => {};
   @Event onZoom: (value: number) => void = () => {};
@@ -58,6 +71,10 @@ export struct MindMapCanvas {
   private zoom: number = 1;
   private panX: number = 0;
   private panY: number = 0;
+  private yaw: number = DEFAULT_YAW;
+  private pitch: number = DEFAULT_PITCH;
+  private rotateStartYaw: number = DEFAULT_YAW;
+  private rotateStartPitch: number = DEFAULT_PITCH;
   private startX: number = 0;
   private startY: number = 0;
   private startZoom: number = 1;
@@ -117,21 +134,30 @@ export struct MindMapCanvas {
     this.selectedPath = path;
   }
 
-  // A layered camera: deeper levels shrink and cascade down-right while the
-  // tree keeps its 2D spacing, so cards read as stacked layers without overlap.
+  // A real perspective camera orbiting the tree. Cards stay upright as
+  // billboards; their anchor point and size follow yaw, pitch and depth.
   private projection(): Projection {
-    return { cx: this.scene.width / 2, cy: this.scene.height / 2 };
+    const size: number = Math.max(1, this.scene.width, this.scene.height);
+    return { cx: this.scene.width / 2, cy: this.scene.height / 2,
+      cosYaw: Math.cos(this.yaw), sinYaw: Math.sin(this.yaw),
+      cosPitch: Math.cos(this.pitch), sinPitch: Math.sin(this.pitch),
+      distance: Math.max(2200, size * 2 + 1000), depthStep: 70 };
   }
 
   private projectNode(node: CanvasNode, projection: Projection = this.projection()): ProjectedNode {
-    const depth: number = node.depth;
-    const scale: number = Math.max(0.5, 1 - depth * 0.06);
-    // Positions keep the 2D tree spacing; only card size and a small cascade
-    // change with depth, so connectors never double back across a level.
-    const x: number = (node.x + node.width / 2 - projection.cx) + depth * 20;
-    const y: number = (node.y + node.height / 2 - projection.cy) + depth * 24;
-    return { node: node, x: x, y: y, width: node.width * scale,
-      height: node.height * scale, scale: scale, z: depth };
+    // Fan the tree outward by level before rotating, so perspective shifts
+    // do not collapse a parent and its children into the same screen area.
+    const fan: number = 1 + Math.min(0.5, node.depth * 0.15);
+    const x: number = (node.x + node.width / 2 - projection.cx) * fan;
+    const y: number = (node.y + node.height / 2 - projection.cy) * fan;
+    const z: number = node.depth * projection.depthStep;
+    const x1: number = x * projection.cosYaw + z * projection.sinYaw;
+    const z1: number = -x * projection.sinYaw + z * projection.cosYaw;
+    const y1: number = y * projection.cosPitch - z1 * projection.sinPitch;
+    const z2: number = y * projection.sinPitch + z1 * projection.cosPitch;
+    const scale: number = Math.max(0.2, Math.min(2.5, projection.distance / (projection.distance + z2)));
+    return { node: node, x: x1 * scale, y: y1 * scale, width: node.width * scale,
+      height: node.height * scale, scale: scale, z: z2 };
   }
 
   private projectedBounds(): { minX: number; minY: number; width: number; height: number } {
@@ -165,7 +191,11 @@ export struct MindMapCanvas {
   @Monitor('document')
   refreshDocument(): void {
     this.rebuildScene();
-    if (this.currentDocumentId !== this.document.documentId) { this.needsFit = true; this.fit(); }
+    if (this.currentDocumentId !== this.document.documentId) {
+      this.resetRotation();
+      this.needsFit = true;
+      this.fit();
+    }
     this.currentDocumentId = this.document.documentId;
     this.paint();
   }
@@ -175,10 +205,14 @@ export struct MindMapCanvas {
 
   @Monitor('viewMode')
   refreshViewMode(): void {
+    this.resetRotation();
     this.needsFit = true;
     this.fit();
     this.paint();
   }
+
+  @Monitor('resetViewSignal')
+  requestResetView(): void { this.resetView(); }
 
   @Monitor('fitSignal')
   requestFit(): void { this.fit(); this.paint(); }
@@ -215,6 +249,35 @@ export struct MindMapCanvas {
       this.panX += (width - oldWidth) / 2;
       this.panY += (height - oldHeight) / 2;
     }
+    this.paint();
+  }
+
+  private resetRotation(): void {
+    this.yaw = DEFAULT_YAW;
+    this.pitch = DEFAULT_PITCH;
+  }
+
+  private resetView(): void {
+    this.resetRotation();
+    this.needsFit = true;
+    this.fit();
+    this.paint();
+  }
+
+  private beginRotate(): void {
+    this.rotateStartYaw = this.yaw;
+    this.rotateStartPitch = this.pitch;
+  }
+
+  private updateRotate(dx: number, dy: number): void {
+    this.yaw = this.rotateStartYaw + dx * YAW_PER_PIXEL;
+    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.rotateStartPitch + dy * PITCH_PER_PIXEL));
+    this.paint();
+  }
+
+  private cancelRotate(): void {
+    this.yaw = this.rotateStartYaw;
+    this.pitch = this.rotateStartPitch;
     this.paint();
   }
 
@@ -497,7 +560,7 @@ export struct MindMapCanvas {
     Canvas(this.context)
       .width('100%').height('100%')
       .backgroundColor($r('app.color.fs_bg'))
-      .accessibilityText('思维导图画布，单指拖动平移，双指缩放，点击节点选中。可通过节点面板编辑。')
+      .accessibilityText('思维导图画布。2D 单指平移；3D 单指旋转视角；双指平移或缩放；点击节点选中。')
       .onReady(() => {
         this.ready = true;
         this.rebuildScene();
@@ -513,7 +576,14 @@ export struct MindMapCanvas {
         PinchGesture().onActionStart(() => { this.beginPinch(); })
           .onActionUpdate((event: GestureEvent) => { this.setZoom(this.startZoom * event.scale); })
           .onActionCancel(() => { this.cancelPinch(); }),
-        PanGesture({ fingers: 1, distance: 5 }).onActionStart(() => { this.beginPan(); })
+        PanGesture({ fingers: 1, distance: 5 })
+          .onActionStart(() => { if (this.viewMode === '3d') { this.beginRotate(); } else { this.beginPan(); } })
+          .onActionUpdate((event: GestureEvent) => {
+            if (this.viewMode === '3d') { this.updateRotate(event.offsetX, event.offsetY); }
+            else { this.updatePan(event.offsetX, event.offsetY); }
+          })
+          .onActionCancel(() => { if (this.viewMode === '3d') { this.cancelRotate(); } else { this.cancelPan(); } }),
+        PanGesture({ fingers: 2, distance: 5 }).onActionStart(() => { this.beginPan(); })
           .onActionUpdate((event: GestureEvent) => { this.updatePan(event.offsetX, event.offsetY); })
           .onActionCancel(() => { this.cancelPan(); }),
         TapGesture().onAction((event: GestureEvent) => {
