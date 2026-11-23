@@ -75,6 +75,26 @@
   body.embed .wrap{padding:0;gap:0;display:block}
   body.embed .side,body.embed .caption{display:none}
   body.embed .phone{border-radius:0;box-shadow:none}
+
+  /* Soft depth theme */
+  html[data-style=soft]{--bg:#F7F5F1;--surface:#FFFFFF;--text:#211F28;--muted:#6F6A62;--border:#E8E2D9;--grid:#E5DED2}
+  html[data-style=soft] body{background:#ECE8E1}
+  html[data-style=soft] .phone{box-shadow:0 24px 60px rgba(44,39,70,.16)}
+  html[data-style=soft] .head{background:rgba(255,255,255,.94);border-bottom-color:#EDE7DE}
+  html[data-style=soft] .canvas{
+    background-color:var(--bg);
+    background-image:
+      radial-gradient(circle at 50% 46%,rgba(91,91,214,.10),rgba(91,91,214,0) 54%),
+      radial-gradient(var(--grid) 1.05px,transparent 1.15px);
+    background-size:auto,26px 26px;
+  }
+  html[data-style=soft] .card.face{box-shadow:0 8px 20px rgba(35,32,60,.10),0 1px 2px rgba(35,32,60,.05)}
+  html[data-style=soft] .card.face.image-card{box-shadow:0 10px 26px rgba(35,32,60,.13),0 1px 2px rgba(35,32,60,.06)}
+  html[data-style=soft] .zoom{box-shadow:0 6px 18px rgba(35,32,60,.10);border-color:#E7E1D8}
+  html[data-style=soft] .foot{border-top-color:#EDE7DE}
+  html[data-style=soft] .chat{background:linear-gradient(135deg,#5B5BD6,#7C6CF2);color:#fff;box-shadow:0 6px 16px rgba(91,91,214,.26)}
+  html[data-style=soft] .side h2{letter-spacing:-.2px}
+  html[data-style=soft] .badge{box-shadow:0 2px 6px rgba(35,32,60,.18)}
 </style>
 </head>
 <body>
@@ -121,6 +141,10 @@
     <h2>2D / 3D 画布预览</h2>
     <p>2D 单指拖动平移；3D 单指拖动像转球一样自由旋转，滚轮缩放。点击节点选中，点击右侧圆点折叠/展开分支。</p>
     <div class="controls">
+      <div class="row">
+        <button data-style="soft" class="active">柔和立体</button>
+        <button data-style="minimal">克制</button>
+      </div>
       <div class="row">
         <button data-sample="simple" class="active">基础示例</button>
         <button data-sample="complex">复杂图像</button>
@@ -218,6 +242,7 @@
   if (params.get('sample') === 'complex') nodes = complexNodes;
   const state = {
     sample: params.get('sample') === 'complex' ? 'complex' : 'simple',
+    style: params.get('style') === 'minimal' ? 'minimal' : 'soft',
     mode: params.get('mode') === '3d' ? '3d' : '2d',
     layout: params.get('layout') === 'down' || params.get('layout') === 'right' ? params.get('layout') : 'center',
     selectedId: 'signal',
@@ -226,6 +251,7 @@
     panY: 0,
     rotation: orientationMatrix(initialYaw, initialPitch)
   };
+  document.documentElement.dataset.style = state.style;
   if (params.get('embed') === '1') document.body.classList.add('embed');
 
   const canvas = document.getElementById('canvas');
@@ -516,6 +542,20 @@
     const b = Math.min(255, Math.round((value & 255) * factor));
     return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
   }
+  const BRANCH_COLORS = ['#5B5BD6', '#2E8B7D', '#C07A3A', '#A65A7A', '#4E7DB8', '#7A6FA8'];
+  function hexRgba(hex, alpha) {
+    const value = parseInt(hex.slice(1), 16);
+    return `rgba(${(value >> 16) & 255},${(value >> 8) & 255},${value & 255},${alpha})`;
+  }
+  function colorMix(hex, target, weight) {
+    const a = parseInt(hex.slice(1), 16);
+    const b = parseInt(target.slice(1), 16);
+    const mix = channel => Math.round(channel(b) * (1 - weight) + channel(a) * weight);
+    const r = mix(v => (v >> 16) & 255);
+    const g = mix(v => (v >> 8) & 255);
+    const bl = mix(v => v & 255);
+    return '#' + ((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0');
+  }
 
   function render() {
     const rect = canvas.getBoundingClientRect();
@@ -524,6 +564,14 @@
     if (!state.initialized) { fit(scene); state.initialized = true; }
     const path = selectedPath();
     const byId = new Map(scene.nodes.map(node => [node.id, node]));
+    const rootChildren = scene.nodes.filter(node => node.parentId === rootId);
+    const branchIndex = new Map(rootChildren.map((node, index) => [node.id, index]));
+    const branchColorFor = node => {
+      if (state.style !== 'soft' || node.depth === 0) return state.style === 'soft' ? '#5B5BD6' : '#5354C7';
+      let current = node;
+      while (current.parentId && current.parentId !== rootId) current = byId.get(current.parentId) || current;
+      return BRANCH_COLORS[(branchIndex.get(current.id) || 0) % BRANCH_COLORS.length];
+    };
     edges.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
     edges.setAttribute('preserveAspectRatio', 'none');
     let edgeMarkup = '';
@@ -547,8 +595,13 @@
         const mid = (sx + ex) / 2;
         d = `M${sx} ${sy} C${mid} ${sy} ${mid} ${ey} ${ex} ${ey}`;
       }
-      const width = (onBranch ? 2.6 : 1.8) * state.zoom * ((a.scale + b.scale) / 2);
-      edgeMarkup += `<path d="${d}" fill="none" stroke="${onBranch ? '#5354C7' : '#81849B'}" stroke-width="${width}" stroke-linecap="round"/>`;
+      const branch = branchColorFor(node);
+      const soft = state.style === 'soft';
+      const width = (soft ? (onBranch ? 3 : 2.2) : (onBranch ? 2.6 : 1.8)) *
+        state.zoom * ((a.scale + b.scale) / 2);
+      const stroke = soft ? branch : onBranch ? '#5354C7' : '#81849B';
+      const opacity = soft ? (onBranch ? 0.95 : 0.55) : 1;
+      edgeMarkup += `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="${opacity}" stroke-width="${width}" stroke-linecap="round"/>`;
     }
     edges.innerHTML = edgeMarkup;
 
@@ -567,26 +620,58 @@
       const selected = node.id === state.selectedId;
       const onBranch = path.has(node.id);
       const isRoot = node.depth === 0;
-      const fill = isRoot ? '#5354C7' : selected ? '#ECECFA' : '#FFFFFF';
-      const stroke = isRoot ? (selected ? '#FFFFFF' : '#5354C7') : selected ? '#5354C7' : onBranch ? '#5354C7' : node.depth === 1 ? '#5354C7' : '#DADAE2';
-      const strokeWidth = (isRoot ? (selected ? 2.5 : 1) : selected ? 2.5 : onBranch ? 1.8 : node.depth === 1 ? 1.2 : 1) * state.zoom * item.scale;
-      const radius = 14 * state.zoom * item.scale;
+      const soft = state.style === 'soft';
+      const branch = branchColorFor(node);
+      let fill;
+      let stroke;
+      let strokeWidth;
+      if (soft) {
+        if (isRoot) {
+          fill = '#5B5BD6';
+          stroke = selected ? '#FFFFFF' : hexRgba(branch, 0.55);
+          strokeWidth = selected ? 2.5 : 1;
+        } else if (selected) {
+          fill = colorMix(branch, '#FFFFFF', 0.16);
+          stroke = branch;
+          strokeWidth = 2.5;
+        } else if (onBranch) {
+          fill = colorMix(branch, '#FFFFFF', 0.10);
+          stroke = branch;
+          strokeWidth = 1.8;
+        } else if (node.depth === 1) {
+          fill = colorMix(branch, '#FFFFFF', 0.07);
+          stroke = hexRgba(branch, 0.38);
+          strokeWidth = 1.4;
+        } else {
+          fill = '#FFFFFF';
+          stroke = hexRgba(branch, 0.22);
+          strokeWidth = 1;
+        }
+      } else {
+        fill = isRoot ? '#5354C7' : selected ? '#ECECFA' : '#FFFFFF';
+        stroke = isRoot ? (selected ? '#FFFFFF' : '#5354C7') : selected ? '#5354C7' : onBranch ? '#5354C7' : node.depth === 1 ? '#5354C7' : '#DADAE2';
+        strokeWidth = isRoot ? (selected ? 2.5 : 1) : selected ? 2.5 : onBranch ? 1.8 : node.depth === 1 ? 1.2 : 1;
+      }
+      strokeWidth *= state.zoom * item.scale;
+      const radius = (soft ? 16 : 14) * state.zoom * item.scale;
       const lift = state.mode === '3d' ? 10 * state.zoom * item.scale : 0;
+      const cardBackground = soft && isRoot ? 'linear-gradient(135deg,#5B5BD6 0%,#7C6CF2 100%)' : fill;
 
       if (state.mode === '3d') {
         const shadow = document.createElement('div');
-        shadow.className = 'card';
-        shadow.style.cssText = `left:${item.x - item.w / 2 + 5 * item.scale * state.zoom}px;top:${item.y - item.h / 2 + lift + 5 * item.scale * state.zoom}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:rgba(16,17,20,.14);pointer-events:none`;
+        shadow.className = 'card depth-shadow';
+        shadow.style.cssText = `left:${item.x - item.w / 2 + 5 * item.scale * state.zoom}px;top:${item.y - item.h / 2 + lift + 5 * item.scale * state.zoom}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${soft ? 'rgba(35,32,60,.16)' : 'rgba(16,17,20,.14)'};pointer-events:none`;
         cards.appendChild(shadow);
         const side = document.createElement('div');
-        side.className = 'card';
-        side.style.cssText = `left:${item.x - item.w / 2 + lift * .55}px;top:${item.y - item.h / 2 + lift}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${colorShade(fill, 0.62)};pointer-events:none`;
+        side.className = 'card depth-side';
+        side.style.cssText = `left:${item.x - item.w / 2 + lift * .55}px;top:${item.y - item.h / 2 + lift}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${colorShade(fill, soft ? 0.68 : 0.62)};pointer-events:none`;
         cards.appendChild(side);
       }
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card face';
       card.dataset.node = node.id;
-      card.style.cssText = `left:${item.x - item.w / 2}px;top:${item.y - item.h / 2}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${fill};border:${strokeWidth}px solid ${stroke};color:${isRoot ? '#FFFFFF' : '#1D1D1F'};font-size:${Math.max(7, 15 * state.zoom * item.scale)}px;font-weight:${isRoot ? 700 : selected ? 500 : 400}`;
+      card.style.cssText = `left:${item.x - item.w / 2}px;top:${item.y - item.h / 2}px;width:${item.w}px;height:${item.h}px;border-radius:${radius}px;background:${cardBackground};border:${strokeWidth}px solid ${stroke};color:${isRoot ? '#FFFFFF' : soft ? '#211F28' : '#1D1D1F'};font-size:${Math.max(7, 15 * state.zoom * item.scale)}px;font-weight:${isRoot ? 700 : selected ? 500 : 400}`;
+      if (soft && selected && !isRoot) card.style.boxShadow = `0 10px 26px ${hexRgba(branch, 0.22)}, 0 2px 6px rgba(35,32,60,.08)`;
       if (node.image) {
         card.classList.add('image-card');
         const thumb = document.createElement('img');
@@ -615,6 +700,7 @@
           tag.className = 'tag';
           tag.textContent = node.tag;
           tag.style.fontSize = `${Math.max(6, 10 * state.zoom * item.scale)}px`;
+          if (soft) tag.style.background = branch;
           card.appendChild(tag);
         }
       } else {
@@ -634,7 +720,7 @@
         const badge = document.createElement('div');
         badge.className = 'badge';
         badge.textContent = node.collapsed ? (node.hiddenCount > 99 ? '+99' : '+' + node.hiddenCount) : '−';
-        badge.style.cssText = `left:${item.x + item.w / 2 - 11 * item.scale * state.zoom}px;top:${item.y - 11 * item.scale * state.zoom}px;width:${22 * item.scale * state.zoom}px;height:${22 * item.scale * state.zoom}px;font-size:${Math.max(6, (node.collapsed ? 10 : 14) * state.zoom * item.scale)}px`;
+        badge.style.cssText = `left:${item.x + item.w / 2 - 11 * item.scale * state.zoom}px;top:${item.y - 11 * item.scale * state.zoom}px;width:${22 * item.scale * state.zoom}px;height:${22 * item.scale * state.zoom}px;font-size:${Math.max(6, (node.collapsed ? 10 : 14) * state.zoom * item.scale)}px;background:${soft ? branch : '#5354C7'}`;
         badge.addEventListener('click', event => {
           event.stopPropagation();
           const target = nodes.find(n => n.id === node.id);
@@ -657,6 +743,7 @@
     document.getElementById('meta-selected').textContent = selectedNode.text;
     document.getElementById('mode-btn').textContent = state.mode === '3d' ? '3D' : '2D';
     document.getElementById('mode-btn').classList.toggle('active', state.mode === '3d');
+    document.querySelectorAll('[data-style]').forEach(button => button.classList.toggle('active', button.dataset.style === state.style));
     document.querySelectorAll('[data-sample]').forEach(button => button.classList.toggle('active', button.dataset.sample === state.sample));
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
     document.querySelectorAll('[data-layout]').forEach(button => button.classList.toggle('active', button.dataset.layout === state.layout));
@@ -666,8 +753,15 @@
 
   function updateUrl() {
     try {
-      history.replaceState(null, '', '?sample=' + state.sample + '&mode=' + state.mode + '&layout=' + state.layout);
+      history.replaceState(null, '', '?sample=' + state.sample + '&style=' + state.style +
+        '&mode=' + state.mode + '&layout=' + state.layout);
     } catch (_) {}
+  }
+  function setStyle(style) {
+    state.style = style;
+    document.documentElement.dataset.style = style;
+    updateUrl();
+    render();
   }
   function settleView() {
     render();
@@ -722,6 +816,7 @@
     target.collapsed = !target.collapsed;
     render();
   });
+  document.querySelectorAll('[data-style]').forEach(button => button.addEventListener('click', () => setStyle(button.dataset.style)));
   document.querySelectorAll('[data-sample]').forEach(button => button.addEventListener('click', () => setSample(button.dataset.sample)));
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   document.querySelectorAll('[data-layout]').forEach(button => button.addEventListener('click', () => setLayout(button.dataset.layout)));
