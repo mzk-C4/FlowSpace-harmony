@@ -24,6 +24,7 @@ struct Index {
   @Local progress: string = '';
   @Local saveStatus: string = '尚未保存';
   @Local message: string = '';
+  @Local generateError: string = '';
   @Local connectionMessage: string = '';
   @Local resourceOpenError: string = '';
   @Local failedResourceId: string = '';
@@ -179,7 +180,8 @@ struct Index {
         if (!await this.flushCurrent()) return;
         const reuse: boolean = this.lastCreateInput === text && this.lastCreateId === this.document.documentId;
         if (reuse && this.lastCreateCompleted) {
-          this.currentTab = 1; this.message = '这段输入已有导图，可在下方继续对话修改。'; return;
+          this.currentTab = 1; this.generateError = '';
+          this.message = '这段输入已有导图，可在下方继续对话修改。'; return;
         }
         if (!reuse) {
           this.useDocument(createDocument(text.split('\n')[0].slice(0, 40)));
@@ -190,6 +192,7 @@ struct Index {
     }
     const token: number = ++this.requestToken;
     this.currentTab = 1;
+    this.generateError = '';
     this.appendMessage('user', text);
     this.persist();
     this.busy = true; this.progress = '正在连接模型服务…'; this.message = '';
@@ -213,7 +216,13 @@ struct Index {
         if (this.session.document.revision !== result.baseRevision) this.message = '导图已修改，这份候选已过期。请放弃后重新生成。';
       }
     } catch (error) {
-      if (token === this.requestToken) { this.message = (error as Error).message; this.appendMessage('assistant', '本次未修改导图：' + this.message); await this.persist(); }
+      if (token === this.requestToken) {
+        const reason: string = (error as Error).message;
+        this.message = reason;
+        // 主动取消不算生成失败，首页不显示失败提示；其余原因保留给首页重试。
+        this.generateError = reason.startsWith('已取消生成') ? '' : reason;
+        this.appendMessage('assistant', '本次未修改导图：' + this.message); await this.persist();
+      }
     } finally { if (token === this.requestToken) { this.busy = false; } }
   }
 
@@ -346,6 +355,7 @@ struct Index {
           Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
             TabContent() {
               HomePage({ documents: this.documents, busy: this.busy || this.changingDocument,
+                progress: this.progress, errorMessage: this.generateError,
                 onOpenExample: () => { this.importDocument(true); },
                 onGenerate: (text: string) => { this.generate(text, true); },
                 onOpenDocument: (id: string) => { this.openDocument(id); }, onNewMap: () => { this.newMap(); },

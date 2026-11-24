@@ -70,4 +70,4 @@ npm test
 npm run test:phone-scripts
 ```
 
-专项手机脚本回归需要本机 SDK 和先前构建的 unsigned HAP。当前提交的原生截图来自 API 24 SDK Previewer。实体机签名安装、手机键盘触控、真实供应商生成和设备上导出由接机验收记录。[架构与本轮验收](docs/架构与验收.md) · [AI 协议](backend/README.md) · [模块接口](docs/implementation/CONTRACT.md) · [视频来源](docs/implementation/videos.md) · [资料与许可](docs/implementation/resources.md)
+专项手机脚本回归需要本机 SDK 和先前构建的 unsigned HAP。当前提交的原生截图来自 API 24 SDK Previewer。实体机签名安装、手机键盘触控、真实供应商生成和设备上导出由接机验收记录。[架构与本轮验收](docs/架构与验收.md) · [AI 协议](backend/README.md) · [AI 联调记录](docs/implementation/ai-connection.md) · [模块接口](docs/implementation/CONTRACT.md) · [视频来源](docs/implementation/videos.md) · [资料与许可](docs/implementation/resources.md)
