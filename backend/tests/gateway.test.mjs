@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createGateway } from '../server.mjs';
 import { validateDocument, validateRequest, validateCandidate } from '../validation.mjs';
-import { readConfig } from '../llm.mjs';
+import { assembleCandidate, readConfig } from '../llm.mjs';
 
 const clone = value => structuredClone(value);
 function document() {
@@ -19,6 +19,9 @@ function request(mode = 'create', id = 'request_test') {
   return { requestId: id, documentId: doc.documentId, baseRevision: doc.revision, mode, instruction: '整理知识点', scopeNodeId: mode === 'revise' ? 'branch' : '', document: doc, messages: [] };
 }
 function result(req = request()) { return { document: clone(req.document), summary: '已整理知识结构' }; }
+function modelResult(req = request(), nodes = [{ text: '电路', children: [{ text: '欧姆定律' }] }]) {
+  return { title: req.document.title, nodes: clone(nodes), summary: '已整理知识结构' };
+}
 async function listen(server) {
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   return `http://127.0.0.1:${server.address().port}`;
@@ -65,6 +68,8 @@ test('configuration supports v1 root and complete endpoint; rejects unsafe URLs'
   assert.equal(readConfig(env).endpoint, 'https://example.com/v1/chat/completions');
   assert.equal(readConfig({ ...env, LLM_BASE_URL: 'https://example.com/v1/chat/completions' }).endpoint, 'https://example.com/v1/chat/completions');
   assert.equal(readConfig({ ...env, LLM_BASE_URL: 'file:///secret' }).configured, false);
+  assert.equal(readConfig({ ...env, LLM_API_KEY: '' }).configured, false);
+  assert.equal(readConfig({ ...env, LLM_BASE_URL: 'http://127.0.0.1:11524/v1', LLM_API_KEY: '' }).configured, true);
   assert.equal(readConfig({}).configured, false);
 });
 
@@ -141,20 +146,67 @@ test('message preservation compares semantic fields, preserving array order but 
 });
 
 test('streamed UTF-8 produces one valid candidate, no hidden reasoning; deduplicates completed request', async t => {
-  const fixture = await setup(t, async (_req, res) => emit(res, result(), true));
+  const fixture = await setup(t, async (_req, res) => emit(res, modelResult(), true));
   const response = await post(fixture.url, request()); assert.equal(response.status, 200);
   const text = await response.text(), data = events(text);
   assert.equal(data.filter(e => e.type === 'candidate').length, 1);
   assert.equal(data.at(-1).type, 'done'); assert.ok(!text.includes('HIDDEN_REASONING'));
-  assert.equal(data.find(e => e.type === 'candidate').candidate.document.documentId, 'map_test');
+  const generated = data.find(e => e.type === 'candidate').candidate.document;
+  assert.equal(generated.documentId, 'map_test');
+  assert.equal(generated.nodes[0].id, request().document.rootId);
+  assert.equal(generated.nodes.find(node => node.text === '欧姆定律').parentId, generated.nodes.find(node => node.text === '电路').id);
   const second = await post(fixture.url, request()); await second.text(); assert.equal(fixture.calls(), 1);
   const conflict = await post(fixture.url, { ...request(), instruction: '不同内容' }); assert.equal(conflict.status, 409);
+});
+
+test('same-origin page is served and branch generation only sends and returns the selected subtree to the model', async t => {
+  const req = request('revise');
+  const branch = req.document.nodes.find(node => node.id === 'branch');
+  const added = { id: 'outside', parentId: branch.id, order: 0, text: '欧姆定律', note: '', collapsed: false };
+  const child = { id: 'new-2', parentId: added.id, order: 0, text: '电阻计算', note: '', collapsed: false };
+  const fixture = await setup(t, async (_req, res, payload) => {
+    const input = JSON.parse(payload.messages[1].content);
+    assert.deepEqual(input.document.nodes, [{ ...branch, parentId: '', order: 0 }]);
+    assert.equal(input.document.rootId, branch.id);
+    assert.equal(input.sourceText, '');
+    return emit(res, modelResult(req, [added, child]));
+  });
+  const page = await fetch(fixture.url);
+  assert.match(page.headers.get('content-type'), /^text\/html/);
+  assert.match(await page.text(), /id="generate-form"/);
+  const data = events(await (await post(fixture.url, req)).text());
+  const generated = data.find(e => e.type === 'candidate').candidate.document;
+  assert.deepEqual(generated.nodes.find(node => node.id === 'outside'), req.document.nodes[2]);
+  assert.deepEqual(generated.nodes.find(node => node.id === branch.id), branch);
+  const ohmLaw = generated.nodes.find(node => node.text === added.text);
+  assert.notEqual(ohmLaw.id, added.id);
+  assert.deepEqual({ ...ohmLaw, id: added.id }, added);
+  assert.equal(generated.nodes.find(node => node.text === child.text).parentId, ohmLaw.id);
+  assert.equal(generated.sourceText, req.document.sourceText);
+  assert.equal(generated.revision, req.document.revision);
+});
+
+test('model revision preserves omitted nodes and notes, and expanded deletions stay within scope', () => {
+  const req = request('revise');
+  req.document.nodes[1].note = '保留备注';
+  req.document.nodes.push(
+    { id: 'child', parentId: 'branch', order: 0, text: '可移除', note: '', collapsed: false },
+    { id: 'leaf', parentId: 'child', order: 0, text: '下级', note: '', collapsed: false },
+    { id: 'keep', parentId: 'branch', order: 1, text: '保留内容', note: '保留备注', collapsed: false }
+  );
+  const model = { title: req.document.title, nodes: [], removeIds: ['child'], summary: '移除分支' };
+  const result = assembleCandidate(model, req);
+  assert.deepEqual(result.document.nodes.map(n => n.id), ['root', 'branch', 'outside', 'keep']);
+  assert.equal(result.document.nodes[1].note, '保留备注');
+  assert.throws(() => assembleCandidate({ ...model, removeIds: ['outside'] }, req), /范围内/);
+  assert.throws(() => assembleCandidate({ ...model, removeIds: ['branch'] }, req), /范围根/);
+  assert.throws(() => assembleCandidate({ ...model, removeIds: [] }, req), /没有实际修改/);
 });
 
 test('repairs invalid output once, and never emits an invalid candidate', async t => {
   const fixture = await setup(t, async (_req, res, payload, count) => {
     if (count === 2) assert.equal(payload.messages.length, 4);
-    return emit(res, count === 1 ? '{broken-json' : result());
+    return emit(res, count === 1 ? '{broken-json' : modelResult());
   });
   const response = await post(fixture.url, request()); const data = events(await response.text());
   assert.equal(fixture.calls(), 2); assert.equal(data.filter(e => e.type === 'candidate').length, 1);
@@ -173,7 +225,7 @@ test('same document locks concurrent work; cancelling closes upstream and releas
   const started = new Promise(resolve => { startedResolve = resolve; });
   const ended = new Promise(resolve => { endedResolve = resolve; });
   const fixture = await setup(t, async (_req, res, _payload, count) => {
-    if (count > 1) return emit(res, result());
+    if (count > 1) return emit(res, modelResult());
     res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': heartbeat\n\n');
     res.on('close', endedResolve); startedResolve();
   });

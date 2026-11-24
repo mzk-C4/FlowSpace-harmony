@@ -21,6 +21,10 @@ struct Index {
   @Local selectedNodeId: string = '';
   @Local candidate: GenerationCandidate | null = null;
   @Local busy: boolean = false;
+  @Local creating: boolean = false;
+  @Local homeDraft: string = '';
+  @Local homeError: string = '';
+  @Local revisionScope: string = '';
   @Local progress: string = '';
   @Local saveStatus: string = '尚未保存';
   @Local message: string = '';
@@ -36,13 +40,12 @@ struct Index {
   private session: DocumentSession = new DocumentSession(this.document);
   private pathStack: NavPathStack = new NavPathStack();
   private saveToken: number = 0;
-  private requestToken: number = 0;
-  private lastCreateInput: string = '';
-  private lastCreateId: string = '';
-  private lastCreateCompleted: boolean = false;
+  private creationRequest: GenerationRequest | null = null;
+  private createdDocumentId: string = '';
+  private cancelRequested: boolean = false;
 
   aboutToAppear(): void { this.initialize(); }
-  aboutToDisappear(): void { generationClient.cancel(); }
+  aboutToDisappear(): void { this.cancelGeneration(); }
 
   private context(): common.UIAbilityContext {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -162,59 +165,100 @@ struct Index {
     } catch (error) { this.message = (error as Error).message; return false; }
   }
 
+  private chatMessage(role: string, content: string): ChatMessage {
+    return { id: newId('message'), role: role, content: content.slice(0, 20000), createdAt: new Date().toISOString() };
+  }
+
   private appendMessage(role: string, content: string): void {
-    const message: ChatMessage = { id: newId('message'), role: role, content: content.slice(0, 20000), createdAt: new Date().toISOString() };
-    this.session.document.messages.push(message);
+    this.session.document.messages.push(this.chatMessage(role, content));
     if (this.session.document.messages.length > 1000) this.session.document.messages.shift();
     this.sync();
+  }
+
+  private cancelGeneration(): void {
+    if (!this.busy || this.changingDocument) return;
+    this.cancelRequested = true;
+    generationClient.cancel();
+  }
+
+  private async requestCandidate(request: GenerationRequest): Promise<GenerationCandidate> {
+    if (this.cancelRequested) throw new Error('已取消生成，输入和已有导图已保留');
+    this.progress = '正在连接模型服务…';
+    const result: GenerationCandidate = await generationClient.generate(this.settings.backendUrl, request,
+      (value: string) => { this.progress = value; });
+    if (this.cancelRequested) throw new Error('已取消生成，输入和已有导图已保留');
+    validateDocument(result.document);
+    if (result.requestId !== request.requestId || result.baseRevision !== request.baseRevision ||
+      result.document.revision !== request.baseRevision || result.document.rootId !== request.document.rootId ||
+      result.document.documentId !== request.documentId) throw new Error('服务返回了不匹配的候选，原图已保留');
+    return result;
+  }
+
+  private async createFromText(text: string): Promise<void> {
+    this.homeError = '';
+    if (this.creationRequest?.instruction === text && this.createdDocumentId &&
+      this.documents.some((entry) => entry.documentId === this.createdDocumentId)) {
+      await this.openDocument(this.createdDocumentId);
+      if (this.document.documentId === this.createdDocumentId) this.homeDraft = '';
+      return;
+    }
+    if (this.creationRequest === null || this.creationRequest.instruction !== text || this.createdDocumentId) {
+      const draft: MindMapDocument = createDocument(text.split('\n')[0].slice(0, 40));
+      draft.sourceText = text;
+      this.creationRequest = buildGenerationRequest(draft, text, true, '');
+      this.createdDocumentId = '';
+    }
+    const request: GenerationRequest = this.creationRequest;
+    this.busy = true; this.creating = true; this.cancelRequested = false; this.progress = '正在准备生成…';
+    try {
+      if (!await this.flushCurrent()) throw new Error('请先保存当前导图，再重试生成。');
+      const result: GenerationCandidate = await this.requestCandidate(request);
+      this.changingDocument = true;
+      this.progress = '正在保存导图…';
+      if (!await this.flushCurrent()) throw new Error('请先保存当前导图，再重试生成。');
+      const next: MindMapDocument = cloneDocument(result.document);
+      next.revision = request.baseRevision + 1;
+      next.updatedAt = new Date().toISOString();
+      next.messages = [this.chatMessage('user', text), this.chatMessage('assistant', result.summary)];
+      await documentRepository.save(next);
+      this.useDocument(next); this.saveStatus = '已保存'; this.generatedFit++;
+      this.createdDocumentId = next.documentId;
+      this.homeDraft = ''; this.message = ''; this.currentTab = 1;
+      this.documents = await documentRepository.list();
+    } catch (error) {
+      if (this.createdDocumentId) this.message = '导图已保存，文库暂时无法刷新。';
+      else this.homeError = (error as Error).message;
+    } finally {
+      this.creating = false; this.changingDocument = false; this.busy = false; this.progress = '';
+    }
   }
 
   private async generate(instruction: string, create: boolean = false): Promise<void> {
     const text: string = instruction.trim();
     if (!this.ready || this.busy || this.changingDocument || this.showPendingCandidate()) return;
-    if (!text || text.length > 20000) { this.message = '请输入1至20,000个字符'; return; }
     if (create) {
-      this.changingDocument = true;
-      try {
-        if (!await this.flushCurrent()) return;
-        const reuse: boolean = this.lastCreateInput === text && this.lastCreateId === this.document.documentId;
-        if (reuse && this.lastCreateCompleted) {
-          this.currentTab = 1; this.message = '这段输入已有导图，可在下方继续对话修改。'; return;
-        }
-        if (!reuse) {
-          this.useDocument(createDocument(text.split('\n')[0].slice(0, 40)));
-          this.session.document.sourceText = text;
-          this.lastCreateInput = text; this.lastCreateId = this.document.documentId; this.lastCreateCompleted = false;
-        }
-      } finally { this.changingDocument = false; }
+      this.homeDraft = instruction;
+      if (!text || instruction.length > 20000) { this.homeError = '请输入 1 至 20,000 个字符'; return; }
+      await this.createFromText(text);
+      return;
     }
-    const token: number = ++this.requestToken;
-    this.currentTab = 1;
-    this.appendMessage('user', text);
-    this.persist();
-    this.busy = true; this.progress = '正在连接模型服务…'; this.message = '';
-    const request: GenerationRequest = buildGenerationRequest(this.session.document, text, create, this.selectedNodeId);
+    if (!text || instruction.length > 20000) { this.message = '请输入 1 至 20,000 个字符'; return; }
+    const history: ChatMessage[] = this.session.document.messages;
+    const lastMessage: ChatMessage | undefined = history[history.length - 1];
+    if (lastMessage?.role !== 'user' || lastMessage.content !== text) {
+      this.appendMessage('user', text);
+      this.persist();
+    }
+    const request: GenerationRequest = buildGenerationRequest(this.session.document, text, false, this.selectedNodeId);
+    const branch = request.document.nodes.find((node) => node.id === request.scopeNodeId);
+    this.revisionScope = request.scopeNodeId === request.document.rootId ? '整张导图' : '选中分支 · ' + (branch?.text ?? '');
+    this.busy = true; this.cancelRequested = false; this.message = '';
     try {
-      const result: GenerationCandidate = await generationClient.generate(this.settings.backendUrl, request,
-        (value: string) => { if (token === this.requestToken) this.progress = value; });
-      if (token !== this.requestToken) return;
-      validateDocument(result.document);
-      if (result.requestId !== request.requestId || result.baseRevision !== request.baseRevision ||
-        result.document.documentId !== request.documentId) throw new Error('服务返回了不匹配的候选，原图已保留');
-      if (create && request.baseRevision === 0 && this.session.document.revision === result.baseRevision) {
-        this.session.applyCandidate(result);
-        this.generatedFit++;
-        this.lastCreateCompleted = true;
-        this.appendMessage('assistant', result.summary || '导图已生成，可以继续编辑或选择分支扩写。');
-        this.sync(); await this.persist();
-      } else {
-        this.candidate = result;
-        this.progress = '候选已生成，确认后应用';
-        if (this.session.document.revision !== result.baseRevision) this.message = '导图已修改，这份候选已过期。请放弃后重新生成。';
-      }
-    } catch (error) {
-      if (token === this.requestToken) { this.message = (error as Error).message; this.appendMessage('assistant', '本次未修改导图：' + this.message); await this.persist(); }
-    } finally { if (token === this.requestToken) { this.busy = false; } }
+      const result: GenerationCandidate = await this.requestCandidate(request);
+      this.candidate = result;
+      if (this.session.document.revision !== result.baseRevision) this.message = '导图已修改，这份候选已过期。请放弃后重新生成。';
+    } catch (error) { this.message = (error as Error).message; }
+    finally { this.busy = false; this.progress = ''; }
   }
 
   private applyCandidate(): void {
@@ -222,7 +266,6 @@ struct Index {
     try {
       const summary: string = this.candidate.summary;
       this.session.applyCandidate(this.candidate);
-      if (this.lastCreateId === this.document.documentId) this.lastCreateCompleted = true;
       this.candidate = null;
       this.appendMessage('assistant', summary || '已应用导图修改。');
       this.message = ''; this.sync(); this.persist();
@@ -346,27 +389,35 @@ struct Index {
           Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
             TabContent() {
               HomePage({ documents: this.documents, busy: this.busy || this.changingDocument,
+                draft: this.homeDraft, onDraftChange: (text: string) => { this.homeDraft = text; this.homeError = ''; },
+                generating: this.creating, generationProgress: this.progress, generationError: this.homeError,
+                canCancel: !this.changingDocument, onCancel: () => { this.cancelGeneration(); },
+                onConnectionSettings: () => { this.currentTab = 3; },
                 onOpenExample: () => { this.importDocument(true); },
                 onGenerate: (text: string) => { this.generate(text, true); },
                 onOpenDocument: (id: string) => { this.openDocument(id); }, onNewMap: () => { this.newMap(); },
                 onOpenResource: (resource: LearningResource) => { this.openResource(resource); } })
             }.tabBar(this.tabLabel('首页', $r('sys.symbol.house'), 0))
             TabContent() {
-              DIYPage({ document: this.candidate !== null ? this.candidate.document : this.document,
+              DIYPage({ document: this.candidate !== null && this.candidate.baseRevision === this.document.revision ?
+                this.candidate.document : this.document,
                 selectedNodeId: this.selectedNodeId, canUndo: this.canUndo, canRedo: this.canRedo,
                 busy: this.busy, progress: this.progress, saveStatus: this.saveStatus,
                 candidateSummary: this.candidate !== null ? (this.candidate.summary || '预览生成结果，确认后应用') : '',
                 canApply: this.candidate !== null && this.candidate.baseRevision === this.document.revision,
+                revisionScope: this.revisionScope,
                 appearance: this.settings.themeMode, generatedFit: this.generatedFit, errorMessage: this.message, reduceMotion: this.settings.reduceMotion,
                 onSelect: (id: string) => { this.selectedNodeId = id; }, onAction: (action: EditorAction) => { return this.action(action); },
-                onGenerate: (text: string) => { this.generate(text); }, onCancel: () => { generationClient.cancel(); },
+                onGenerate: (text: string) => { this.generate(text); }, onCancel: () => { this.cancelGeneration(); },
                 onApplyCandidate: () => { this.applyCandidate(); }, onDiscardCandidate: () => { this.discardCandidate(); },
                 onExport: (format: string) => { this.exportDocument(format); } })
             }.tabBar(this.tabLabel('DIY 导图', $r('sys.symbol.rectangle_3_group'), 1))
             TabContent() {
               LibraryPage({ externalOpenError: this.resourceOpenError, failedResourceId: this.failedResourceId,
                 onOpenResource: (resource: LearningResource) => { this.openResource(resource); },
-                onUseTopic: (text: string) => { this.generate(text, true); } })
+                onUseTopic: (text: string) => {
+                  if (!this.busy) { this.homeDraft = text; this.homeError = ''; this.currentTab = 0; }
+                } })
             }.tabBar(this.tabLabel('资料库', $r('sys.symbol.book_pages'), 2))
             TabContent() {
               ProfilePage({ settings: this.settings, documents: this.documents, connectionMessage: this.connectionMessage,

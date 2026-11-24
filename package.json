@@ -7,6 +7,7 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=backend/.env backend/server.mjs",
+    "start:local": "node backend/server.mjs --local-model",
     "check": "node tools/check-integration.mjs",
     "test": "node --test backend/tests/*.test.mjs tools/tests/*.mjs docs/preview/test-preview.mjs",
     "build:harmony": "pwsh -NoProfile -File tools/build-harmony.ps1",

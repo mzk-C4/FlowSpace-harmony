@@ -29,7 +29,9 @@ storage/ExportService.ets 导出单例 exportService：exportDocument(context,do
 
 Node HTTP 后端独立 backend/（不复制原工作台后端），端口8787。GET /api/health → {configured:boolean,model:string,message:string}。
 POST /api/mindmaps/generate 接收 GenerationRequest，SSE采用 data: 单行JSON\n\n：{type:'progress',message:string} / {type:'candidate',candidate:GenerationCandidate} / {type:'error',code:string,message:string} / {type:'done'}。
-模型输出完整规范化 document，首次≤200节点/8层，输入≤20000字符，校验失败修复一次；修改只允许 scopeNodeId 子树变动，树外不变；严格校验 baseRevision、稳定ID、无环。create和revise均使用客户端documentId；创建与修改返回baseRevision；最终revision由客户端命令入口递增。不返回模型隐藏推理。环境 LLM_BASE_URL（兼容 /v1 根地址或完整 /chat/completions）、LLM_MODEL、LLM_API_KEY；缺配置明确503。关闭连接取消上游，同文档并发返回409，请求ID避免重复，文档不长期留服务器。服务端 README/.env.example/测试一起交付，不写真实key。
+模型首次生成时输出嵌套大纲，修改时输出增删改动。网关以客户端的 `documentId`、`baseRevision` 和快照组装完整候选，保留树外节点和已有 ID，并校验唯一根、父节点和深度。首次最多 200 节点、8 层，输入最多 20,000 字符。结构失败时尝试修复一次。客户端只接收校验通过的完整候选，通过命令入口递增版本。
+
+远程模型配置 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`。地址可填写兼容 `/v1` 根地址或完整 `/chat/completions`。缺少配置时返回 503。关闭客户端连接会取消上游，同文档并发请求返回 409。候选可在网关进程内短期去重，文档和对话由客户端保存。[后端协议与本机模式](../../backend/README.md)
 
 主对话提供 services/GenerationClient.ets 的 generationClient.generate(baseUrl,request,onProgress):Promise<GenerationCandidate> / cancel():void / health(baseUrl):Promise<HealthStatus>，各页面只调用回调，无直接HTTP。
 

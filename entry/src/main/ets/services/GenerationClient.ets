@@ -51,6 +51,7 @@ class GenerationClient {
       let received: number = 0;
       let finished: boolean = false;
       let ended: boolean = false;
+      let completed: boolean = false;
       let status: number = 0;
       let candidate: GenerationCandidate | null = null;
       this.active = request;
@@ -76,7 +77,7 @@ class GenerationClient {
           fail(new Error(message));
           return;
         }
-        if (candidate === null) { fail(new Error('生成未返回完整导图，请重试')); return; }
+        if (!completed || candidate === null) { fail(new Error('生成未返回完整导图，请重试')); return; }
         finished = true;
         cleanup();
         resolve(candidate);
@@ -91,7 +92,9 @@ class GenerationClient {
             try {
               const event: StreamEvent = JSON.parse(line.slice(5).trim()) as StreamEvent;
               if (event.type === 'progress') onProgress(event.message ?? '正在整理结构…');
-              else if (event.type === 'candidate' && event.candidate !== undefined) candidate = event.candidate;
+              else if (event.type === 'candidate' && !completed && candidate === null && event.candidate !== undefined) {
+                candidate = event.candidate;
+              } else if (event.type === 'done') completed = true;
               else if (event.type === 'error') { fail(new Error(event.message ?? '模型生成失败，请重试')); }
             } catch (_) { fail(new Error('服务返回了无效的数据流，原图已保留')); }
           }

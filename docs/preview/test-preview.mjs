@@ -10,7 +10,9 @@ const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert.ok(script, 'The delivered single HTML file must contain its own script');
 
-function runtime({ width = 390, height = 330, initialDocuments, osDark = false } = {}) {
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+function runtime({ width = 390, height = 330, initialDocuments, osDark = false, gateway } = {}) {
   const elements = new Map(), saved = new Map(), urls = new Map(), downloads = [], listeners = new Map(), classes = new Set();
   const darkMedia = { matches: osDark, addEventListener(name, callback) { this.onChange = callback; } };
   let networkCalls = 0;
@@ -20,7 +22,7 @@ function runtime({ width = 390, height = 330, initialDocuments, osDark = false }
     style: {}, dataset: {}, attributes: {}, classList: { toggle() {} },
     setAttribute(name, value) { this.attributes[name] = value; },
     getAttribute(name) { return this.attributes[name] ?? ''; },
-    addEventListener() {}, querySelectorAll() { return []; }, focus() {},
+    addEventListener() {}, querySelectorAll() { return []; }, focus() {}, scrollIntoView() {},
     close() { this.open = false; }, showModal() { this.open = true; },
     click() {}, getBoundingClientRect() { return { width, height }; }, setPointerCapture() {}
   });
@@ -43,12 +45,19 @@ function runtime({ width = 390, height = 330, initialDocuments, osDark = false }
     static revokeObjectURL(url) { urls.delete(url); }
   }
   const context = vm.createContext({
-    document, window: { scrollTo() {}, addEventListener() {} },
+    document, window: { location: gateway ? new URL('http://127.0.0.1:18797') : new URL('file:///preview/index.html'),
+      scrollTo() {}, addEventListener() {} },
     localStorage: { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) },
     matchMedia: () => darkMedia,
     requestAnimationFrame: fn => fn(), setTimeout: () => 0, clearTimeout() {},
-    console, URL: BlobURL, Blob, Date, Math, AbortController,
-    fetch: async () => { networkCalls++; throw Error('Unexpected network request'); }
+    console, URL: BlobURL, Blob, Date, Math, AbortController, TextDecoder,
+    fetch: async (path, options) => {
+      networkCalls++;
+      if (!gateway) throw Error('Unexpected network request');
+      if (path === '/api/health') return Response.json({ configured: true, model: 'fixture', message: '已配置' });
+      assert.equal(path, '/api/mindmaps/generate');
+      return gateway(JSON.parse(options.body), options.signal);
+    }
   });
   vm.runInContext(script, context, { filename: 'preview/index.html#script' });
   return {
@@ -60,6 +69,22 @@ function runtime({ width = 390, height = 330, initialDocuments, osDark = false }
     hasClass: name => classes.has(name),
     setOSDark(value) { darkMedia.matches = value; darkMedia.onChange?.(); }
   };
+}
+
+function streamCandidate(request, { complete = true } = {}) {
+  const document = structuredClone(request.document);
+  document.nodes.push({ id: 'fixture-' + document.revision, parentId: request.scopeNodeId || document.rootId, order: 0,
+    text: '从指令提炼的节点', note: '', collapsed: false });
+  const candidate = { requestId: request.requestId, baseRevision: request.baseRevision, document, summary: '已整理节点' };
+  const frames = [{ type: 'progress', message: '正在整理节点…' }, { type: 'candidate', candidate }];
+  if (complete) frames.push({ type: 'done' });
+  const bytes = new TextEncoder().encode(frames.map(event => 'data: ' + JSON.stringify(event) + '\r\n\r\n').join(''));
+  return new Response(new ReadableStream({
+    start(controller) {
+      for (let offset = 0; offset < bytes.length; offset += 7) controller.enqueue(bytes.slice(offset, offset + 7));
+      controller.close();
+    }
+  }), { headers: { 'Content-Type': 'text/event-stream' } });
 }
 
 function nativeCatalog(relativePath, name) {
@@ -99,26 +124,52 @@ test('offline preview starts without network and embeds the final native resourc
     nativeCatalog('../../entry/src/main/ets/data/VideoCatalog.ets', 'VIDEO_RESOURCES'));
   assert.equal(app.run('resources.length'), 13);
   assert.equal(app.run('videos.length'), 8);
-  assert.match(html, /离线演示/);
-  assert.match(html, /不调用真实 AI/);
+  assert.equal(app.get('#generate-submit').disabled, true);
+  assert.equal(app.get('#local-workspace').hidden, false);
 });
 
-test('text input creates an explicitly identified demo document and survives browser storage serialization', () => {
-  const app = runtime();
-  app.get('#prompt').value = '线性代数\n向量空间\n矩阵变换';
-  app.run('generateDemo()');
+test('text input saves a completed streamed result with its source and deduplicates a repeated submit', async () => {
+  const requests = [];
+  const app = runtime({ gateway: request => { requests.push(request); return streamCandidate(request); } });
+  const text = '线性代数\n向量空间\n矩阵变换';
+  app.get('#prompt').value = text;
+  await app.run('generateFromPrompt()');
   assert.equal(app.run('page'), 'diy');
-  assert.equal(app.run('current.nodes.length'), 4);
-  assert.equal(app.run('current.sourceText'), '线性代数\n向量空间\n矩阵变换');
+  assert.equal(app.run('current.nodes.length'), 2);
+  assert.equal(app.run('current.sourceText'), text);
   assert.equal(app.run('validate(current)'), true);
-  assert.match(app.run('current.messages[0].content'), /没有调用 AI/);
+  assert.equal(app.run('current.messages[0].content'), text);
+  assert.equal(app.run('current.messages[1].content'), '已整理节点');
   const persisted = JSON.parse(app.saved.get('flowspace.preview.documents'));
   assert.equal(persisted[0].title, '线性代数');
   assert.equal(persisted[0].schemaVersion, 1);
-  app.get('#prompt').value = '';
   const count = app.run('docs.length');
-  app.run('generateDemo()');
-  assert.equal(app.run('docs.length'), count, 'Empty input must not create a document');
+  app.get('#prompt').value = text;
+  await app.run('generateFromPrompt()');
+  assert.equal(requests.length, 1);
+  assert.equal(app.run('docs.length'), count);
+});
+
+test('oversized input, truncated streams and cancellation preserve the draft and existing library', async () => {
+  let calls = 0;
+  const app = runtime({ gateway(request, signal) {
+    if (++calls === 1) return streamCandidate(request, { complete: false });
+    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  } });
+  const before = app.saved.get('flowspace.preview.documents');
+  app.get('#prompt').value = '一'.repeat(20001);
+  await app.run('generateFromPrompt()');
+  assert.equal(calls, 0);
+  assert.equal(app.get('#prompt').value.length, 20001);
+  app.get('#prompt').value = '希望保留的原文';
+  await app.run('generateFromPrompt()');
+  assert.match(app.get('#gateway-home').textContent, /未收到完整导图/);
+  const pending = app.run('generateFromPrompt()');
+  app.run('cancelGeneration()');
+  await pending;
+  assert.match(app.get('#gateway-home').textContent, /已取消/);
+  assert.equal(app.get('#prompt').value, '希望保留的原文');
+  assert.equal(app.saved.get('flowspace.preview.documents'), before);
 });
 
 test('actual editor actions, undo and redo preserve the tree and increase revisions monotonically', () => {
@@ -141,22 +192,29 @@ test('actual editor actions, undo and redo preserve the tree and increase revisi
   assert.equal(app.run('validate(current)'), true);
 });
 
-test('conversation candidates require confirmation and stale candidates cannot overwrite later edits', () => {
-  const app = runtime();
+test('conversation candidates preview only, keep their target and cannot overwrite later edits', async () => {
+  let scope;
+  const app = runtime({ gateway: request => { scope = request.scopeNodeId; return streamCandidate(request); } });
+  app.run('selected=current.nodes[1].id');
   app.get('#chat-input').value = '补充工程应用';
-  app.run('chatDemo()');
+  await app.run('reviseFromChat()');
+  assert.equal(scope, app.run('current.nodes[1].id'));
   assert.equal(app.run('current.nodes.length'), 10, 'Preview alone must not mutate the diagram');
-  assert.equal(app.run('candidate.text'), '补充工程应用');
+  assert.equal(app.run('shownDocument().nodes.length'), 11);
+  assert.match(app.get('#map-status').textContent, /未应用/);
   app.run('applyCandidate()');
   assert.equal(app.run('current.nodes.length'), 11);
   assert.equal(app.run('candidate'), null);
   app.run('undo()');
   assert.equal(app.run('current.nodes.length'), 10);
   app.get('#chat-input').value = '这条候选已经过期';
-  app.run('chatDemo();current.revision++;applyCandidate()');
-  assert.equal(app.run('current.nodes.length'), 10);
-  assert.equal(app.run('candidate'), null);
-  assert.match(app.get('#toast').textContent, /重新发起/);
+  const pending = app.run('reviseFromChat()');
+  app.run("applyEdit(()=>append(current,current.rootId,'手工编辑'))");
+  await pending;
+  app.run('applyCandidate()');
+  assert.equal(app.run('current.nodes.at(-1).text'), '手工编辑');
+  assert.equal(app.run('shownDocument().nodes.at(-1).text'), '手工编辑');
+  assert.match(app.get('#candidate-box').innerHTML, /候选已过期/);
 });
 
 test('actual JSON and Markdown exporters contain the full hierarchy, including collapsed nodes', async () => {
@@ -366,12 +424,13 @@ test('deleting the signal example keeps it absent through restart until the exam
   assert.equal(restarted.run('docs.length'), 1);
 });
 
-test('keyboard shortcuts run actual actions while preserving text editing and IME composition', () => {
-  const app = runtime();
+test('keyboard shortcuts run actual actions while preserving text editing and IME composition', async () => {
+  const app = runtime({ gateway: streamCandidate });
   let prevented = 0;
   const event = data => ({ key: '', target: { tagName: 'DIV' }, preventDefault() { prevented++; }, ...data });
   app.get('#prompt').value = '键盘创建导图';
   app.dispatch('keydown', event({ key: 'Enter', ctrlKey: true, target: { tagName: 'TEXTAREA', id: 'prompt' } }));
+  await tick();
   assert.equal(app.run('page'), 'diy');
   const count = app.run('current.nodes.length');
   app.run("applyEdit(()=>append(current,current.rootId,'键盘撤销示例'))");
@@ -385,7 +444,9 @@ test('keyboard shortcuts run actual actions while preserving text editing and IM
   app.dispatch('keydown', event({ key: 'Enter', isComposing: true, target: { tagName: 'INPUT', id: 'chat-input' } }));
   assert.equal(app.run('candidate'), null, 'Chinese IME confirmation must not send a message');
   app.dispatch('keydown', event({ key: 'Enter', target: { tagName: 'INPUT', id: 'chat-input' } }));
-  assert.equal(app.run('candidate.text'), '键盘修改');
+  await tick();
+  assert.equal(app.run('current.messages.at(-1).content'), '键盘修改');
+  assert.ok(app.run('candidate'));
   const revision = app.run('current.revision');
   app.run('openEditorMenu()');
   app.dispatch('keydown', event({ key: 'z', ctrlKey: true }));

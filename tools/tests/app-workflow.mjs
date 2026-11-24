@@ -192,17 +192,18 @@ test('successful first generation saves a new map, preserves old map and dedupli
   assert.equal(calls.length, 1); assert.equal(app.document.documentId, id); assert.equal(repo.docs.size, 3);
 });
 
-test('failed first generation preserves the original saved map and saves a retryable source draft with reused documentId', async () => {
+test('failed first generation preserves the editor, input and library and reuses the pending request', async () => {
   const { app, repo, calls, oldDoc } = await appHarness({ generate: async (request, _progress, attempt) => {
     if (attempt === 1) throw new Error('AI 服务未配置'); return candidateFor(request);
   } });
   await app.generate('整理信号与系统', true);
-  const draftId = app.document.documentId;
-  assert.notEqual(draftId, oldDoc.documentId); assert.equal(app.document.revision, 0);
-  assert.equal(app.document.sourceText, '整理信号与系统'); assert.match(app.message, /未配置/);
-  assert.equal(repo.docs.get(draftId).sourceText, '整理信号与系统');
+  const draftId = calls[0].request.documentId;
+  assert.equal(app.document.documentId, oldDoc.documentId);
+  assert.equal(app.currentTab, 0); assert.equal(app.homeDraft, '整理信号与系统'); assert.match(app.homeError, /未配置/);
+  assert.ok(!repo.docs.has(draftId)); assert.equal(repo.docs.size, 2);
   assert.equal(repo.docs.get(oldDoc.documentId).nodes[0].text, '已有重要知识');
   await app.generate('整理信号与系统', true);
+  assert.equal(calls[0].request.requestId, calls[1].request.requestId);
   assert.equal(app.document.documentId, draftId); assert.equal(calls.length, 2); assert.equal(repo.docs.size, 3);
   assert.equal(app.document.nodes[0].text, 'AI整理后的知识');
 });
@@ -223,33 +224,27 @@ test('hand edits during generation make candidate stale; applying it cannot over
   app.discardCandidate(); assert.equal(app.candidate, null); assert.equal(app.document.nodes[0].text, '生成过程中手动修改');
 });
 
-test('failed create then hand edits then same-input retry requires confirmation and remains undoable', async () => {
-  const { app, repo, calls } = await appHarness({ generate: async (request, _progress, attempt) => {
+test('manual edits to the existing map remain intact across a failed creation and its retry', async () => {
+  const { app, repo, calls, oldDoc } = await appHarness({ generate: async (request, _progress, attempt) => {
     if (attempt === 1) throw new Error('首次上游暂不可用');
     return candidateFor(request);
   } });
   await app.generate('同一个创建主题', true);
-  const draftId = app.document.documentId;
+  const draftId = calls[0].request.documentId;
   edit(app, '失败后自己补充的重要知识');
   await app.persist();
   const editedRevision = app.document.revision;
   assert.ok(editedRevision > 0);
   await app.generate('同一个创建主题', true);
   assert.equal(calls.length, 2); assert.equal(app.document.documentId, draftId);
-  assert.equal(calls[1].request.baseRevision, editedRevision);
-  assert.equal(app.document.nodes[0].text, '失败后自己补充的重要知识');
-  assert.equal(repo.docs.get(draftId).nodes[0].text, '失败后自己补充的重要知识');
-  assert.equal(app.candidate.document.nodes[0].text, 'AI整理后的知识');
-  assert.equal(app.document.revision, editedRevision);
-  app.applyCandidate(); await app.persist();
-  assert.equal(app.candidate, null); assert.equal(app.document.nodes[0].text, 'AI整理后的知识');
-  assert.equal(app.document.revision, editedRevision + 1);
-  app.action({ kind: 'undo', nodeId: '', parentId: '', text: '', note: '' });
-  await app.persist();
-  assert.equal(app.document.nodes[0].text, '失败后自己补充的重要知识');
-  assert.equal(app.document.revision, editedRevision + 2);
+  assert.equal(calls[1].request.baseRevision, 0);
+  assert.equal(repo.docs.get(oldDoc.documentId).nodes[0].text, '失败后自己补充的重要知识');
+  assert.equal(repo.docs.get(oldDoc.documentId).revision, editedRevision);
+  assert.equal(app.candidate, null);
+  assert.equal(app.document.nodes[0].text, 'AI整理后的知识');
+  assert.equal(app.document.revision, 1);
   await app.generate('同一个创建主题', true);
-  assert.equal(calls.length, 2, 'confirmed create retries are marked complete and do not issue another provider call');
+  assert.equal(calls.length, 2);
   assert.equal(app.document.documentId, draftId); assert.equal(repo.docs.size, 3);
 });
 
