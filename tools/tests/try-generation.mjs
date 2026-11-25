@@ -27,17 +27,17 @@ async function fixture(t, mode = 'success') {
     called++;
     if (mode === 'error') { res.writeHead(401); res.end('controlled authentication failure'); return; }
     if (mode === 'wait') { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': controlled pending provider\n\n'); return; }
-    const document = structuredClone(request.document);
-    document.title = '受控上游生成：信号与系统';
-    document.nodes.push({ id: 'signals_child', parentId: document.rootId, order: 0,
-      text: '频域分析', note: '测试替身内容，不是真实模型生成', collapsed: false });
+    assert.equal(request.mode, 'create');
     if (mode === 'truncated') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.end('data: ' + JSON.stringify({ choices: [{ delta: { content: '{"document":' } }] }) + '\n\n');
       return;
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ document, summary: '受控替身生成成功' }) } }] }));
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      title: '受控上游生成：信号与系统', nodes: [{ text: '频域分析', note: '测试替身内容，不是真实模型生成' }],
+      summary: '受控替身生成成功'
+    }) } }] }));
   });
   const upstreamPort = await listen(provider);
   const gateway = createGateway({ env: { LLM_BASE_URL: `http://127.0.0.1:${upstreamPort}/v1`,

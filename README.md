@@ -4,7 +4,9 @@
 
 ## 在电脑上试一遍
 
-**双击 [本地四页预览](docs/preview/index.html)，在首页点「打开示例导图 · 信号与系统」。** 选中「信号表征」，改一个节点再撤销，然后导出 JSON，在「个人」页导入即可比较两份导图。浏览器和鸿蒙应用使用同一份 10 节点示例与备份格式。网页中的生成及对话使用已标明的离线演示，编辑和备份可在本地实际操作。[离线操作说明](docs/preview/README.md)
+**通过网关打开网页，即可输入一个主题或粘贴长文并生成导图。** 生成后进入编辑器，选择整图或一个分支继续整理，预览后确认应用。导图自动保存在当前浏览器。鸿蒙应用使用相同的生成协议与备份格式。
+
+直接打开 [四页预览](docs/preview/index.html) 也可以离线编辑《信号与系统》示例和导入、导出备份。文件页与网关网页各自保存导图，可以用 JSON 备份在两边恢复。[网页操作说明](docs/preview/README.md)
 
 ### 在电脑上用自己的模型
 
@@ -16,13 +18,24 @@ if (!(Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 npm start
 ```
 
-保持网关运行，在第二个终端生成可导入的备份。长文也可以用 `npm run try:ai -- --file "课程笔记.txt"` 读取 UTF-8 文件。
+保持网关运行，打开 [FlowSpace 网页](http://127.0.0.1:8787/)。从终端生成可以使用下方命令，长文可用 `npm run try:ai -- --file "课程笔记.txt"` 读取 UTF-8 文件。
 
 ```powershell
 npm run try:ai -- "按信号、系统和频域分析整理复习提纲"
 ```
 
-命令会输出新 JSON 的本地路径。在离线预览或鸿蒙应用的「个人 → 从 JSON 备份恢复」中打开。模型密钥只由本机后端读取。缺配置、服务断开或候选不完整时，命令会显示原因。
+命令会输出 JSON 备份的本地路径。模型密钥只由服务端读取。
+
+### 用电脑上的开源模型运行
+
+用 llama.cpp 启动兼容服务，再运行本机网关。将命令中的模型文件换成已下载的 GGUF 权重。这里的模型名称与 `--alias` 一致。[llama.cpp 运行说明](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) · [Qwen3-4B-Instruct-2507 GGUF](https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF)
+
+```powershell
+llama-server --model "./Qwen3-4B-Instruct-2507-Q4_K_M.gguf" --alias Qwen3-4B-Instruct-2507 --host 127.0.0.1 --port 11524 --ctx-size 32768 --parallel 1
+npm run start:local -- Qwen3-4B-Instruct-2507
+```
+
+两条命令在不同终端运行。浏览器打开 [本机模型工作页](http://127.0.0.1:18797/)。模拟器可通过 `hdc -t <模拟器地址> rport tcp:8787 tcp:18797` 使用同一网关，应用后端地址填 `http://127.0.0.1:8787`。本机模式使用两个回环端口，供应商配置通过 `npm start` 加载。
 
 ### 在电脑上预览原生页面
 

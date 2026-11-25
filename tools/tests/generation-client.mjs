@@ -122,6 +122,7 @@ test('cancel destroys native request, rejects once, blocks duplicate concurrency
 test('no candidate, malformed SSE, server SSE errors and native request errors reject and release resources', async () => {
   const cases = [
     { text: event({ type: 'progress', message: '处理中' }) + event({ type: 'done' }), expected: /未返回完整导图/ },
+    { text: event({ type: 'candidate', candidate: sample().candidate }), expected: /未返回完整导图/ },
     { text: 'data: {broken-json}\n\n', expected: /无效的数据流/ },
     { text: event({ type: 'error', code: 'INVALID_MODEL_OUTPUT', message: '结构修复失败' }) + event({ type: 'done' }), expected: /结构修复失败/ },
     { error: new Error('connection reset'), expected: /无法完成生成.*connection reset/ }
@@ -199,7 +200,8 @@ test('actual client and actual backend interoperate through local fake LLM, incl
   const upstream = createServer(async (req, res) => {
     calls++; let body = ''; for await (const chunk of req) body += chunk;
     const input = JSON.parse(body), user = JSON.parse(input.messages[1].content);
-    const output = JSON.stringify({ document: user.document, summary: '真实网关协议已验证' });
+    assert.equal(user.mode, 'create');
+    const output = JSON.stringify({ title: '中文导图', nodes: [{ text: '欧姆定律' }], summary: '真实网关协议已验证' });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     for (const text of [output.slice(0, 37), output.slice(37)]) {
       res.write(event({ choices: [{ delta: { content: text, reasoning_content: 'must-not-leak' } }] })); await tick();

@@ -22,6 +22,7 @@ export struct DIYPage {
   @Param saveStatus: string = '已保存';
   @Param candidateSummary: string = '';
   @Param canApply: boolean = false;
+  @Param revisionScope: string = '';
   @Param appearance: string = 'system';
   @Param generatedFit: number = 0;
   @Param errorMessage: string = '';
@@ -128,6 +129,7 @@ export struct DIYPage {
 
   private submitChat(): void {
     if (!this.instruction.trim() || this.instruction.length > 20000 || this.busy || this.candidateSummary) { return; }
+    this.getUIContext().getFocusController().clearFocus();
     this.onGenerate(this.instruction.trim());
     // Keep the submitted draft available for retry and cancellation.
   }
@@ -234,9 +236,10 @@ export struct DIYPage {
     Column({ space: 8 }) {
       this.heading('继续整理')
       Row({ space: 6 }) {
-        Text(this.node().id === this.document.rootId ? '整张导图' : '选中分支 · ' + this.node().text)
+        Text(this.busy && this.revisionScope ? this.revisionScope :
+          this.node().id === this.document.rootId ? '整张导图' : '选中分支 · ' + this.node().text)
           .fontColor($r('app.color.fs_accent')).fontSize(14).layoutWeight(1).maxLines(2)
-        if (this.node().id !== this.document.rootId) {
+        if (!this.busy && this.node().id !== this.document.rootId) {
           Button('改为整图', { type: ButtonType.Normal }).height(44).fontSize(14)
             .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).borderRadius(12)
             .onClick(() => { this.onSelect(''); })
@@ -245,7 +248,7 @@ export struct DIYPage {
       Scroll(this.chatScroll) {
         Column({ space: 10 }) {
           if (this.document.messages.length === 0) {
-            Text('可以试试“为每个分支补充一个例子”。生成后可在画布上确认或放弃修改。')
+            Text('生成后可在画布上确认或放弃修改。')
               .fontSize(15).lineHeight(23).width('100%').fontColor($r('app.color.fs_muted'))
           }
           ForEach(this.document.messages.slice(-20), (message: ChatMessage) => {
@@ -271,6 +274,16 @@ export struct DIYPage {
       } else {
         if (this.instruction.length > 20000) {
           Text('超过 20,000 字，请缩短后发送。').fontSize(13).fontColor($r('app.color.fs_danger'))
+        }
+        if (!this.instruction.trim()) {
+          Button(this.node().id === this.document.rootId ? '为各分支加例子' : '补充一个例子',
+            { type: ButtonType.Normal })
+            .height(44).fontSize(14).borderRadius(12).backgroundColor($r('app.color.fs_soft'))
+            .fontColor($r('app.color.fs_accent')).id('chat-example')
+            .onClick(() => {
+              this.instruction = this.node().id === this.document.rootId ?
+                '为每个一级分支补充一个具体例子，保留现有内容。' : '给选中的分支补充一个具体例子，作为直接子节点，保留现有内容。';
+            })
         }
         Row({ space: 8 }) {
           TextArea({ text: this.instruction, placeholder: '描述你希望怎样修改…' })
@@ -331,13 +344,17 @@ export struct DIYPage {
       Column({ space: 4 }) {
         Text(this.canApply ? '候选预览' : '候选已过期').fontSize(15).fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.fs_accent')).width('100%')
+        if (this.canApply) {
+          Text(this.revisionScope).fontSize(13).fontColor($r('app.color.fs_accent')).width('100%').maxLines(2)
+        }
         Text(this.canApply ? this.candidateSummary : '导图已有新的编辑，请放弃候选后重新生成。')
           .fontSize(14).fontColor($r('app.color.fs_text')).width('100%').maxLines(2)
         Row({ space: 8 }) {
           Button('放弃候选').height(44).layoutWeight(1).backgroundColor($r('app.color.fs_surface'))
             .fontColor($r('app.color.fs_text')).onClick(() => this.onDiscardCandidate())
           Button('确认应用').height(44).layoutWeight(1).backgroundColor($r('app.color.fs_accent'))
-            .fontColor($r('app.color.fs_on_accent')).enabled(this.canApply).onClick(() => this.onApplyCandidate())
+            .fontColor($r('app.color.fs_on_accent')).enabled(this.canApply)
+            .onClick(() => { this.onApplyCandidate(); this.instruction = ''; })
         }.width('100%')
       }.width('100%').padding({ left: 16, right: 16, top: 8, bottom: 8 }).backgroundColor($r('app.color.fs_soft'))
     } else if (this.busy) {
@@ -359,7 +376,8 @@ export struct DIYPage {
         Column({ space: 3 }) {
           Text(this.document.title).fontSize(23).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
             .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.saveStatus + ' · ' + this.document.nodes.length + ' 个节点').fontSize(13)
+          Text((this.candidateSummary && this.canApply ? '未应用' : this.saveStatus) +
+            ' · ' + this.document.nodes.length + ' 个节点').fontSize(13)
             .fontColor(this.saveStatus.startsWith('未保存') ? $r('app.color.fs_danger') : $r('app.color.fs_muted'))
         }.layoutWeight(1).alignItems(HorizontalAlign.Start)
         IconButton({ icon: $r('sys.symbol.arrow_counterclockwise'), label: '撤销', available: this.editable() && this.canUndo,

@@ -38,12 +38,19 @@ class HomeVideoSource implements IDataSource {
 export struct HomePage {
   @Param documents: DocumentSummary[] = [];
   @Param busy: boolean = false;
+  @Param draft: string = '';
+  @Param generating: boolean = false;
+  @Param generationProgress: string = '';
+  @Param generationError: string = '';
+  @Param canCancel: boolean = true;
+  @Event onDraftChange: (value: string) => void = () => {};
   @Event onGenerate: (text: string) => void = (_text: string): void => {};
+  @Event onCancel: () => void = () => {};
+  @Event onConnectionSettings: () => void = () => {};
   @Event onOpenDocument: (id: string) => void = (_id: string): void => {};
   @Event onNewMap: () => void = (): void => {};
   @Event onOpenResource: (resource: LearningResource) => void = (_resource: LearningResource): void => {};
   @Event onOpenExample: () => void = () => {};
-  @Local draft: string = '';
   @Local longText: boolean = false;
   @Local category: string = '全部';
   @Local expandedVideoId: string = '';
@@ -66,7 +73,7 @@ export struct HomePage {
     const text: string = this.draft.trim();
     if (this.busy || text.length === 0 || text.length > 20000) { return; }
     this.getUIContext().getFocusController().clearFocus();
-    this.onGenerate(text);
+    this.onGenerate(this.draft);
   }
 
   @Builder
@@ -110,14 +117,14 @@ export struct HomePage {
         .fontSize(17).fontColor($r('app.color.fs_text')).placeholderColor($r('app.color.fs_muted'))
         .backgroundColor($r('app.color.fs_surface')).enabled(!this.busy)
         .accessibilityText('输入主题或长文，最多两万字').id('home-input')
-        .onChange((value: string) => { this.draft = value; })
+        .onChange((value: string) => { this.onDraftChange(value); })
       if (this.draft.length > 0) {
         Row() {
           Text(this.draft.length + ' / 20,000').fontSize(13)
             .fontColor(this.draft.length > 20000 ? $r('app.color.fs_danger') : $r('app.color.fs_muted'))
           Blank()
           Button('清空', { type: ButtonType.Normal }).height(44).fontSize(14).backgroundColor(Color.Transparent)
-            .fontColor($r('app.color.fs_muted')).enabled(!this.busy).onClick(() => { this.draft = ''; })
+            .fontColor($r('app.color.fs_muted')).enabled(!this.busy).onClick(() => { this.onDraftChange(''); })
         }.width('100%')
       }
       if (this.draft.length > 20000) {
@@ -126,11 +133,32 @@ export struct HomePage {
       Button({ type: ButtonType.Normal }) {
         Row({ space: 8 }) {
           appSymbol($r('sys.symbol.wand_and_stars'), 18, $r('app.color.fs_on_accent'))
-          Text(this.busy ? '生成中…' : '生成导图').fontColor($r('app.color.fs_on_accent')).fontSize(17).fontWeight(FontWeight.Medium)
+          Text(this.generating ? '生成中…' : '生成导图').fontColor($r('app.color.fs_on_accent')).fontSize(17).fontWeight(FontWeight.Medium)
         }
       }.width('100%').constraintSize({ minHeight: 50 }).borderRadius(14).padding(12)
         .backgroundColor($r('app.color.fs_accent')).accessibilityText('生成思维导图').id('home-generate')
-        .enabled(!this.busy && this.draft.trim().length > 0 && this.draft.length <= 20000).onClick(() => this.generate())
+        .enabled(!this.busy && this.draft.trim().length > 0 && this.draft.length <= 20000)
+        .opacity(!this.busy && this.draft.trim().length > 0 && this.draft.length <= 20000 ? 1 : 0.62)
+        .onClick(() => this.generate())
+      if (this.generating) {
+        Row({ space: 8 }) {
+          LoadingProgress().width(18).height(18).color($r('app.color.fs_accent'))
+          Text(this.generationProgress).fontSize(14).fontColor($r('app.color.fs_text')).layoutWeight(1)
+          if (this.canCancel) {
+            Button('取消', { type: ButtonType.Normal }).height(44).fontSize(14)
+              .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent')).id('home-cancel')
+              .onClick(() => this.onCancel())
+          }
+        }.width('100%')
+      } else if (this.generationError) {
+        Text(this.generationError).fontSize(14).fontColor($r('app.color.fs_danger')).width('100%')
+          .id('home-generation-error')
+        if (/配置|连接|鉴权|HTTP 503/.test(this.generationError)) {
+          Button('后端设置', { type: ButtonType.Normal }).height(44).fontSize(14)
+            .backgroundColor($r('app.color.fs_soft')).fontColor($r('app.color.fs_accent'))
+            .onClick(() => this.onConnectionSettings())
+        }
+      }
     }.width('100%').padding(16).borderRadius(20).backgroundColor($r('app.color.fs_surface'))
   }
 
@@ -142,7 +170,7 @@ export struct HomePage {
         ForEach(HOME_EXAMPLES, (example: HomeExample) => {
           Button(example.title, { type: ButtonType.Normal }).layoutWeight(1).constraintSize({ minHeight: 44 })
             .fontSize(14).borderRadius(13).fontColor($r('app.color.fs_accent')).backgroundColor($r('app.color.fs_soft'))
-            .enabled(!this.busy).onClick(() => { this.draft = example.instruction; this.longText = false; })
+            .enabled(!this.busy).onClick(() => { this.onDraftChange(example.instruction); this.longText = false; })
         }, (example: HomeExample) => example.title)
       }.width('100%')
     }.width('100%').alignItems(HorizontalAlign.Start)

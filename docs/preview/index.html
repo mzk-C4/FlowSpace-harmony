@@ -11,15 +11,77 @@
 /* Library retains the native PDF reference: one category row, grouped cards, two-line summaries. */
 .resource-count{margin:6px 0 14px;min-height:44px}.resource-count button{font-size:13px;color:var(--accent)}
 .resource{background:transparent;text-align:left;width:100%;border-radius:0;align-items:center;padding:18px 0;min-height:44px}.resource-copy{min-width:0;flex:1}.resource h3{font-size:16px;font-weight:500}.resource p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;line-height:20px}.resource small{font-size:11px}.resource .arrow{font-size:22px}.resource-detail-group{padding:16px;background:var(--bg);border-radius:16px;margin:18px 0}.resource-detail-group h3{font-size:16px}.resource-detail-group p{color:var(--text);font-size:14px;line-height:1.65}.resource-detail-group small{display:block;margin:9px 0}.resource-url{overflow-wrap:anywhere;color:var(--accent)!important;font-size:12px!important;user-select:all}.external-resource{display:flex;align-items:center;justify-content:center;min-height:46px;padding:12px;margin-top:10px;border-radius:11px;text-decoration:none;font-size:14px}.library-detail-body{padding-top:16px}.library-detail-body h2{font-size:25px;margin:8px 0}.resource-intro{font-size:15px!important;color:var(--text)!important;line-height:24px!important}.topic-boundary{display:block;text-align:center;margin-top:10px}
+/* Generation status stays with the form. The preview occupies the editor's canvas. */
+.generation-feedback { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.generation-feedback p { margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.generation-feedback p:empty { display:none; }
+.generation-feedback p[data-tone="error"] { color:var(--danger); }
+.generation-feedback button { flex-shrink:0; margin-top:6px; }
+.work-link { display:inline-flex; align-items:center; min-height:44px; color:var(--accent); font-size:14px; text-underline-offset:3px; }
+.chat-scope { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--accent); font-size:13px; margin:5px 0 8px; overflow-wrap:anywhere; }
+.chat-input textarea { flex:1; min-width:0; min-height:50px; max-height:150px; padding:10px 12px; resize:vertical; }
+.chat-input button { align-self:end; }
+#candidate-box { margin-bottom:12px; scroll-margin-top:16px; }
+#candidate-box .candidate { margin:0; }
+#candidate-box .row { flex-wrap:wrap; }
+#jump-chat { display:none; }
+[hidden] { display:none !important; }
+@media(max-width:760px) {
+  #jump-chat { display:inline-block; }
+  #chat-panel { scroll-margin-top:16px; }
+}
 </style></head>
 <body>
 
 <div class="app"><header class="topbar"><div class="wordmark"><span class="logo"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="9" width="6" height="6" rx="2"/><path d="M8 12h5V5h4m-4 7v7h4"/><path d="M17 2h5v6h-5zm0 14h5v6h-5z"/></svg></span>FlowSpace</div><button class="icon-btn" aria-label="页面说明与分工" onclick="openHandoff()"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></svg></button></header>
 <main>
-<section id="page-home" class="page" aria-label="首页"><h1>新建思维导图</h1><div class="home-grid"><div class="input-group"><div class="composer"><label for="prompt">主题 / 长文</label><textarea id="prompt" maxlength="20000" placeholder="写下主题，或粘贴需要整理的文字…"></textarea><div class="composer-foot"><small><span id="char-count">0</span> / 20000</small><button class="primary" onclick="generateDemo()">生成演示导图</button></div></div><div class="chips" aria-label="示例主题"><button class="chip" onclick="fillPrompt('梳理数据结构中的线性结构：数组、链表、栈与队列')">数据结构</button><button class="chip" onclick="fillPrompt('帮我梳理微积分的核心概念与学习路径')">微积分</button><button class="chip" onclick="fillPrompt('整理一个个人项目从想法到上线的流程')">项目流程</button></div><button class="secondary full" style="margin-top:15px" onclick="openExample()" aria-label="打开信号与系统示例导图">打开示例导图 · 信号与系统</button><p class="input-note">离线演示，不调用真实 AI。可继续手工编辑与保存。</p></div><div class="home-section"><div class="section-head"><h2>最近导图</h2><button onclick="switchPage('profile')">全部</button></div><div id="recent-list"></div></div><div class="home-section"><div class="section-head"><h2>工科视频</h2><button onclick="showVideos()">全部视频</button></div><div id="video-list"></div></div></div></section>
-<section id="page-diy" class="page editor-page" aria-label="DIY思维导图" hidden><div class="editor-head"><div><h2 id="map-title">新的想法</h2><small id="map-status">保存在此浏览器</small></div><button class="icon-btn" onclick="openExport()">导出 <span aria-hidden="true">↗</span></button></div><div class="editor-grid"><div class="canvas-column"><div class="editor-toolbar"><button id="undo" onclick="undo()" aria-label="撤销"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4-6 6 6 6M3 10h10a7 7 0 0 1 7 7"/></svg></button><button id="redo" onclick="redo()" aria-label="重做"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 6 6-6 6m6-6H11a7 7 0 0 0-7 7"/></svg></button><span class="toolbar-spacer"></span><button onclick="nodeDialog('addChild')">＋ 节点</button><button onclick="openEditorMenu()" aria-label="更多导图操作">更多 ···</button></div><div class="canvas-wrap" id="canvas-wrap"><svg id="map-svg" role="group" aria-roledescription="思维导图" aria-label="可交互思维导图，点击节点选择，拖动画布平移" xmlns="http://www.w3.org/2000/svg"></svg><div class="canvas-bottom"><small id="node-count">0 个节点</small><div><button onclick="zoomBy(.8)" aria-label="缩小导图">−</button><small id="zoom-label">100%</small><button onclick="zoomBy(1.25)" aria-label="放大导图">＋</button><button onclick="fitMap()" style="font-size:10px">适应</button></div></div></div><div class="selected-info"><label>选中节点</label><div class="row"><strong id="selected-label"></strong><div><button class="secondary" onclick="nodeDialog('edit')">编辑</button></div></div></div><details class="source"><summary>原始输入</summary><p id="source-text"></p></details></div><div class="chat-panel"><div class="chat-title">继续整理 <span class="demo-badge">离线演示</span></div><div class="chat-log" id="chat-log"></div><div id="candidate-box"></div><div class="chat-input"><input id="chat-input" maxlength="2000" aria-label="继续整理的指令" placeholder="描述对选中分支的修改…"><button class="primary" onclick="chatDemo()" aria-label="演示对话修改">↑</button></div><small style="display:block;margin-top:8px">离线演示：指令将作为新节点，确认后应用。</small></div></div></section>
+<section id="page-home" class="page" aria-label="首页">
+  <h1>新建思维导图</h1>
+  <div class="home-grid">
+    <div class="input-group">
+      <form class="composer" id="generate-form">
+        <label for="prompt">主题或长文</label>
+        <textarea id="prompt" aria-describedby="prompt-length gateway-home" placeholder="写下一个想整理的主题，或粘贴课堂笔记、文章…"></textarea>
+        <div class="composer-foot">
+          <small id="prompt-length"><span id="char-count">0</span> / 20,000</small>
+          <button class="primary" id="generate-submit" disabled>生成导图</button>
+        </div>
+        <div class="generation-feedback" role="status" aria-live="polite">
+          <p id="gateway-home"></p><button type="button" id="cancel-create" class="secondary" hidden>取消生成</button>
+        </div>
+        <a id="local-workspace" class="work-link" href="http://127.0.0.1:18797/" target="_blank" rel="noopener" hidden>打开本机模型工作页 ↗</a>
+      </form>
+      <div class="chips" aria-label="示例主题">
+        <button class="chip" onclick="fillPrompt('梳理数据结构中的线性结构：数组、链表、栈与队列')">数据结构</button>
+        <button class="chip" onclick="fillPrompt('帮我梳理微积分的核心概念与学习路径')">微积分</button>
+        <button class="chip" onclick="fillPrompt('整理一个个人项目从想法到上线的流程')">项目流程</button>
+      </div>
+      <button class="secondary full" style="margin-top:15px" onclick="openExample()">打开示例导图 · 信号与系统</button>
+    </div>
+    <div class="home-section"><div class="section-head"><h2>最近导图</h2><button onclick="switchPage('profile')">全部</button></div><div id="recent-list"></div></div>
+    <div class="home-section"><div class="section-head"><h2>工科视频</h2><button onclick="showVideos()">全部视频</button></div><div id="video-list"></div></div>
+  </div>
+</section>
+<section id="page-diy" class="page editor-page" aria-label="DIY思维导图" hidden><div class="editor-head"><div><h2 id="map-title">新的想法</h2><small id="map-status">保存在此浏览器</small></div><button class="icon-btn" onclick="openExport()">导出 <span aria-hidden="true">↗</span></button></div>
+  <div class="editor-grid"><div class="canvas-column">
+    <div id="candidate-box" aria-live="polite" tabindex="-1" hidden></div><div class="editor-toolbar"><button id="undo" onclick="undo()" aria-label="撤销"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4-6 6 6 6M3 10h10a7 7 0 0 1 7 7"/></svg></button><button id="redo" onclick="redo()" aria-label="重做"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 6 6-6 6m6-6H11a7 7 0 0 0-7 7"/></svg></button><span class="toolbar-spacer"></span><button id="add-node" onclick="nodeDialog('addChild')">＋ 节点</button><button onclick="openEditorMenu()" aria-label="更多导图操作">更多 ···</button></div><div class="canvas-wrap" id="canvas-wrap"><svg id="map-svg" role="group" aria-roledescription="思维导图" aria-label="可交互思维导图，点击节点选择，拖动画布平移" xmlns="http://www.w3.org/2000/svg"></svg><div class="canvas-bottom"><small id="node-count">0 个节点</small><div><button onclick="zoomBy(.8)" aria-label="缩小导图">−</button><small id="zoom-label">100%</small><button onclick="zoomBy(1.25)" aria-label="放大导图">＋</button><button onclick="fitMap()" style="font-size:10px">适应</button></div></div></div><div class="selected-info"><label>选中节点</label><div class="row"><strong id="selected-label"></strong><div><button class="secondary" id="jump-chat" onclick="jumpToChat()">继续整理</button><button id="edit-node" class="secondary" onclick="nodeDialog('edit')">编辑</button></div></div></div><details class="source"><summary>原始输入</summary><p id="source-text"></p></details></div><aside class="chat-panel" id="chat-panel" aria-labelledby="chat-heading">
+      <div class="chat-title" id="chat-heading">继续整理</div>
+      <div class="chat-scope">
+        <span id="chat-scope"></span><button class="secondary" id="chat-whole" onclick="selectWholeMap()" hidden>改为整图</button>
+      </div>
+      <div class="chat-log" id="chat-log"></div>
+      <form class="chat-input" id="chat-form">
+        <textarea id="chat-input" rows="2" aria-label="继续整理的指令" aria-describedby="chat-scope gateway-chat" placeholder="描述你希望怎样修改…"></textarea>
+        <button class="primary" id="chat-submit" aria-label="发送整理指令" disabled>↑</button>
+      </form>
+      <div class="generation-feedback" role="status" aria-live="polite">
+        <p id="gateway-chat"></p><button type="button" id="cancel-revise" class="secondary" hidden>取消生成</button>
+      </div>
+    </aside>
+  </div>
+</section>
 <section id="page-library" class="page" aria-label="资料库" hidden><div class="page-title"><h1>资料库</h1><p class="sub">工科开放资料与开源项目</p></div><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="resource-search" placeholder="搜索主题、来源或许可" aria-label="搜索资料" oninput="renderResources()"></div><div id="resource-chips" class="chips" role="group" aria-label="资料分类" style="margin-bottom:8px"></div><div class="row spread resource-count"><small id="resource-count" aria-live="polite"></small><button id="resource-reset" onclick="resetResources()">重置</button></div><div id="resource-list"></div><p class="notice">公开阅读不等于开源。详情中可查看来源与许可。</p></section>
-<section id="page-profile" class="page" aria-label="个人" hidden><h1 class="profile-heading">个人</h1><div class="profile-hero"><div class="avatar"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></div><div><h2>本地空间</h2><p class="muted" id="profile-meta">本地保存，无需登录</p></div></div><div class="section-head" style="margin-top:8px"><h2>我的导图</h2><button onclick="document.getElementById('import-file').click()">导入备份</button></div><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="document-search" aria-label="搜索我的导图" placeholder="查找一个想法" oninput="renderDocuments()"></div><div id="document-list"></div><div class="section-head"><h2>偏好与连接</h2></div><div class="setting-group"><div class="setting-row"><span>外观</span><select id="theme" aria-label="外观" onchange="saveSettings()"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div class="setting-row"><div>减少动效<p class="muted" style="font-size:10px">保留清晰的状态反馈</p></div><button id="reduce-motion" class="switch" role="switch" aria-label="减少动效" aria-checked="false" onclick="toggleMotion()"></button></div></div><div class="setting-group" style="padding-top:16px;padding-bottom:16px"><label for="backend-url" style="font-size:12px">后端地址</label><input id="backend-url" type="url" style="margin:9px 0;font-size:12px" placeholder="http://127.0.0.1:8787" onchange="saveSettings()"><button class="outline full" style="font-size:12px" onclick="checkConnection()">检测连接</button><p id="connection-status" class="settings-status">连接检测需要后端运行，并允许浏览器跨域访问。</p></div><p class="notice">保存在当前浏览器。清理数据前请导出 JSON 备份；备份可导入鸿蒙应用。</p><div class="handoff-entry"><button onclick="openHandoff()" style="padding-left:0;font-size:12px">关于与团队分工</button></div></section>
+<section id="page-profile" class="page" aria-label="个人" hidden><h1 class="profile-heading">个人</h1><div class="profile-hero"><div class="avatar"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></div><div><h2>本地空间</h2><p class="muted" id="profile-meta">本地保存，无需登录</p></div></div><div class="section-head" style="margin-top:8px"><h2>我的导图</h2><button onclick="document.getElementById('import-file').click()">导入备份</button></div><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="document-search" aria-label="搜索我的导图" placeholder="查找一个想法" oninput="renderDocuments()"></div><div id="document-list"></div><div class="section-head"><h2>偏好与连接</h2></div><div class="setting-group"><div class="setting-row"><span>外观</span><select id="theme" aria-label="外观" onchange="saveSettings()"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div class="setting-row"><div>减少动效<p class="muted" style="font-size:10px">保留清晰的状态反馈</p></div><button id="reduce-motion" class="switch" role="switch" aria-label="减少动效" aria-checked="false" onclick="toggleMotion()"></button></div></div><div class="setting-group" style="padding-top:16px;padding-bottom:16px"><label>AI 网关</label><p id="backend-location" class="settings-status"></p><button class="outline full" onclick="checkConnection()">检测连接</button><p id="connection-status" class="settings-status" role="status"></p></div><p class="notice">保存在当前浏览器。清理数据前请导出 JSON 备份；备份可导入鸿蒙应用。</p><div class="handoff-entry"><button onclick="openHandoff()" style="padding-left:0;font-size:12px">关于与团队分工</button></div></section>
 </main><nav class="bottom-nav" aria-label="一级导航"><button class="nav-item active" data-page="home" onclick="switchPage('home')"><svg class="icon" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/></svg>首页</button><button class="nav-item" data-page="diy" onclick="switchPage('diy')"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="9" width="6" height="6" rx="2"/><rect x="16" y="2" width="6" height="6" rx="2"/><rect x="16" y="16" width="6" height="6" rx="2"/><path d="M8 12h4V5h4m-4 7v7h4"/></svg>DIY 导图</button><button class="nav-item" data-page="library" onclick="switchPage('library')"><svg class="icon" viewBox="0 0 24 24"><path d="M3 4h7v17H3Zm7 0h6v17h-6Zm6 1 4-1 4 16-4 1Z"/></svg>资料库</button><button class="nav-item" data-page="profile" onclick="switchPage('profile')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>个人</button></nav></div>
 <dialog class="dialog" id="dialog"><div id="dialog-content"></div></dialog><input id="import-file" type="file" accept="application/json,.json" hidden><div id="toast" class="toast" role="status" hidden></div>
 <script>
@@ -27,7 +89,16 @@
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone=v=>JSON.parse(JSON.stringify(v));const id=()=> 'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);let saveError=false;
 function storageGet(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
-function storageSet(key,value){try{localStorage.setItem(key,JSON.stringify(value));saveError=false}catch{saveError=true;toast('浏览器存储不可用，请导出 JSON 备份')}}
+function storageSet(key, value) {
+  const savesDocuments = key === 'flowspace.preview.documents';
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    if (savesDocuments) saveError = false;
+  } catch {
+    if (savesDocuments) saveError = true;
+    toast(savesDocuments ? '浏览器存储不可用，请导出 JSON 备份' : '浏览器暂时无法保存偏好设置');
+  }
+}
 function makeDoc(title,source=''){const rootId=id(),now=new Date().toISOString();return{schemaVersion:1,documentId:'map_'+id(),title,revision:0,rootId,nodes:[{id:rootId,parentId:'',order:0,text:title,note:'',collapsed:false}],layout:'right',sourceText:source,messages:[],createdAt:now,updatedAt:now}}
 function append(doc,parent,text){const node={id:id(),parentId:parent,order:doc.nodes.filter(n=>n.parentId===parent).length,text,note:'',collapsed:false};doc.nodes.push(node);return node.id}
 const NATIVE_EXAMPLE = {
@@ -126,7 +197,218 @@ const NATIVE_EXAMPLE = {
 };
 function seedDoc(){const d=makeDoc('数据结构 · 线性结构','演示样例：比较数组、链表、栈和队列。');for(const [name,items]of [['数组',['连续存储','按下标访问']],['链表',['节点与指针','灵活插入删除']],['栈与队列',['栈：后进先出','队列：先进先出']]]){const p=append(d,d.rootId,name);items.forEach(s=>append(d,p,s))}return d}
 let docs=storageGet('flowspace.preview.documents',null);if(!Array.isArray(docs))docs=[seedDoc()];
-let settings=storageGet('flowspace.preview.settings',{themeMode:'system',reduceMotion:false,backendUrl:'http://127.0.0.1:8787'});let current=docs.length?clone(docs[0]):makeDoc('新的想法'),selected=current.rootId,page='home',past=[],future=[],candidate=null,filter='全部',zoom=1,pan={x:0,y:0},bounds={w:800,h:500};
+let settings=storageGet('flowspace.preview.settings',{themeMode:'system',reduceMotion:false});let current=docs.length?clone(docs[0]):makeDoc('新的想法'),selected=current.rootId,page='home',past=[],future=[],candidate=null,filter='全部',zoom=1,pan={x:0,y:0},bounds={w:800,h:500};
+const gatewayOrigin = ['http:', 'https:'].includes(window.location?.protocol) ? window.location.origin : '';
+const inputLimit = 20000;
+let gatewayStatus = { message: '', model: '', configured: false };
+let activeGeneration = null;
+let firstRequest = null;
+let lastCreatedId = '';
+let createFeedback = '';
+let reviseFeedback = '';
+
+function renderGenerationControls() {
+  const prompt = $('#prompt'), chat = $('#chat-input');
+  const creating = activeGeneration?.mode === 'create';
+  const revising = activeGeneration?.mode === 'revise';
+  $('#char-count').textContent = prompt.value.length;
+  $('#generate-submit').disabled = !gatewayOrigin || !!activeGeneration || !prompt.value.trim() || prompt.value.length > inputLimit;
+  $('#generate-submit').textContent = creating ? '生成中…' : '生成导图';
+  $('#chat-submit').disabled = !gatewayOrigin || !!activeGeneration || !!candidate || !chat.value.trim() || chat.value.length > inputLimit;
+  prompt.readOnly = creating;
+  chat.readOnly = revising || !!candidate;
+  $('#cancel-create').hidden = !creating;
+  $('#cancel-revise').hidden = !revising;
+  $('#local-workspace').hidden = !!gatewayOrigin;
+  const promptTooLong = prompt.value.length > inputLimit;
+  const chatTooLong = chat.value.length > inputLimit;
+  prompt.setAttribute('aria-invalid', String(promptTooLong));
+  chat.setAttribute('aria-invalid', String(chatTooLong));
+  const home = $('#gateway-home'), editor = $('#gateway-chat');
+  home.dataset.tone = promptTooLong || createFeedback ? 'error' : '';
+  editor.dataset.tone = chatTooLong || reviseFeedback ? 'error' : '';
+  home.textContent = creating ? activeGeneration.progress : promptTooLong ? '长度超过 20,000 字，请缩短后再提交。' :
+    createFeedback || (gatewayOrigin ? gatewayStatus.message : '离线页面可编辑和导出。启动本机网关后可生成新导图。');
+  editor.textContent = revising ? activeGeneration.progress : chatTooLong ? '长度超过 20,000 字，请缩短后再发送。' :
+    reviseFeedback || (gatewayOrigin ? '' : '在本地生成页面继续整理。');
+  const node = selectedNode();
+  const scopeId = revising ? activeGeneration.scopeId : node.id;
+  const branchLabel = revising ? activeGeneration.scopeLabel : node.text;
+  $('#chat-scope').textContent = scopeId === current.rootId ? '整张导图' : '选中分支 · ' + branchLabel;
+  $('#chat-whole').hidden = !!activeGeneration || !!candidate || scopeId === current.rootId;
+}
+function selectWholeMap() {
+  selected = current.rootId;
+  renderEditor();
+}
+function jumpToChat() {
+  $('#chat-panel').scrollIntoView({ block: 'start' });
+  if (!$('#chat-input').readOnly && gatewayOrigin) $('#chat-input').focus();
+}
+function makeRequest(document, instruction, mode, scopeId = '') {
+  const snapshot = clone(document);
+  const messages = [];
+  let budget = 24000;
+  for (const message of snapshot.messages.slice(-20).reverse()) {
+    if (message.content.length > budget) break;
+    messages.unshift(message);
+    budget -= message.content.length;
+  }
+  snapshot.messages = messages;
+  return {
+    requestId: 'request_' + id(), documentId: snapshot.documentId, baseRevision: snapshot.revision,
+    mode, instruction, scopeNodeId: scopeId, document: snapshot, messages
+  };
+}
+function appendChat(document, role, content) {
+  document.messages.push({ id: id(), role, content, createdAt: new Date().toISOString() });
+  if (document.messages.length > 1000) document.messages.shift();
+}
+function startGeneration(request, scopeLabel = '') {
+  const operation = {
+    mode: request.mode, scopeId: request.scopeNodeId, scopeLabel,
+    controller: new AbortController(), cancelled: false, progress: '正在连接模型服务…'
+  };
+  activeGeneration = operation;
+  renderGenerationControls();
+  return operation;
+}
+function cancelGeneration() {
+  if (!activeGeneration) return;
+  activeGeneration.cancelled = true;
+  activeGeneration.controller.abort();
+}
+async function readCandidate(response, onProgress) {
+  if (!response.ok) {
+    const problem = await response.json().catch(() => ({}));
+    throw Error(problem?.message || '生成请求失败（HTTP ' + response.status + '）');
+  }
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    throw Error('网关没有返回导图数据流');
+  }
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = '', size = 0, result = null, completed = false;
+  try {
+    while (!completed) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > 2 * 1024 * 1024) throw Error('导图响应过大，请缩小生成范围');
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        let event;
+        try { event = JSON.parse(line.slice(5)); }
+        catch { throw Error('网关返回了无效的导图数据流'); }
+        if (event?.type === 'progress' && typeof event.message === 'string') onProgress(event.message);
+        if (event?.type === 'candidate' && !completed && !result) result = event.candidate;
+        if (event?.type === 'error') throw Error(event.message || '生成失败，请重试');
+        if (event?.type === 'done') { completed = true; break; }
+      }
+    }
+    if (!completed || !result) throw Error('连接已结束，未收到完整导图，请重试');
+    return result;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+async function requestCandidate(request, operation) {
+  const timer = setTimeout(() => operation.controller.abort(), 135000);
+  try {
+    const response = await fetch('/api/mindmaps/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify(request), signal: operation.controller.signal
+    });
+    const result = await readCandidate(response, message => {
+      operation.progress = message;
+      renderGenerationControls();
+    });
+    if (operation.controller.signal.aborted) throw Error('生成中止');
+    if (result.requestId !== request.requestId || result.baseRevision !== request.baseRevision ||
+        result.document?.documentId !== request.documentId || result.document.revision !== request.baseRevision ||
+        result.document.rootId !== request.document.rootId || typeof result.summary !== 'string') {
+      throw Error('网关返回的导图身份或版本不匹配');
+    }
+    validate(result.document);
+    return result;
+  } catch (error) {
+    if (operation.controller.signal.aborted) {
+      throw Error(operation.cancelled ? '已取消生成，输入已保留。' : '等待网关超时，请重试。');
+    }
+    if (error instanceof TypeError) throw Error('无法连接 AI 网关。请检查本机服务，再试一次。');
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+async function generateFromPrompt() {
+  const prompt = $('#prompt');
+  const text = prompt.value.trim();
+  if (activeGeneration || !gatewayOrigin || !text || prompt.value.length > inputLimit) return;
+  if (candidate) { keepActiveDocument(); return; }
+  if (firstRequest?.instruction === text && lastCreatedId && docs.some(doc => doc.documentId === lastCreatedId)) {
+    prompt.value = '';
+    openDoc(lastCreatedId);
+    return;
+  }
+  if (!firstRequest || firstRequest.instruction !== text || lastCreatedId) {
+    const title = text.split('\n')[0].slice(0, 40);
+    firstRequest = makeRequest(makeDoc(title, text), text, 'create');
+    lastCreatedId = '';
+  }
+  const request = firstRequest;
+  createFeedback = '';
+  const operation = startGeneration(request);
+  try {
+    const result = await requestCandidate(request, operation);
+    const next = clone(result.document);
+    next.revision = request.baseRevision + 1;
+    appendChat(next, 'user', text);
+    appendChat(next, 'assistant', result.summary);
+    setCurrent(next);
+    saveCurrent();
+    lastCreatedId = next.documentId;
+    prompt.value = '';
+    switchPage('diy');
+  } catch (error) {
+    createFeedback = error.message;
+  } finally {
+    activeGeneration = null;
+    renderGenerationControls();
+  }
+}
+async function reviseFromChat() {
+  const input = $('#chat-input');
+  const text = input.value.trim();
+  if (activeGeneration || candidate || !gatewayOrigin || !text || input.value.length > inputLimit) return;
+  if (!current.documentId) return;
+  const node = selectedNode();
+  const last = current.messages.at(-1);
+  if (last?.role !== 'user' || last.content !== text) {
+    appendChat(current, 'user', text);
+    saveCurrent();
+  }
+  const request = makeRequest(current, text, 'revise', node.id);
+  reviseFeedback = '';
+  const operation = startGeneration(request, node.text);
+  renderEditor();
+  try {
+    const result = await requestCandidate(request, operation);
+    candidate = {
+      ...result, scopeId: request.scopeNodeId,
+      scopeText: node.id === request.document.rootId ? '整张导图' : '选中分支 · ' + operation.scopeLabel
+    };
+  } catch (error) { reviseFeedback = error.message; }
+  finally {
+    activeGeneration = null;
+    renderEditor();
+    if (candidate && page === 'diy') {
+      fitMap(candidateIsStale() ? '' : candidate.scopeId);
+      $('#candidate-box').scrollIntoView({ block: 'nearest' });
+    }
+  }
+}
 // BEGIN GENERATED LIBRARY HELPERS
 const resourceVerification={"d2l":{"resourceId":"d2l","resourceType":"开放教材","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":"https://github.com/d2l-ai/d2l-en/blob/master/LICENSE-SAMPLECODE"},"thinkdsp":{"resourceId":"thinkdsp","resourceType":"开放教材","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":"https://github.com/AllenDowney/ThinkDSP/blob/master/LICENSE"},"missing":{"resourceId":"missing","resourceType":"开放课程","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"mit6006":{"resourceId":"mit6006","resourceType":"开放课程","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"cpalg":{"resourceId":"cpalg","resourceType":"开放文章","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"algpython":{"resourceId":"algpython","resourceType":"开源代码","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"ostep":{"resourceId":"ostep","resourceType":"公开阅读资料","verifiedAt":"2026-11-23","access":"作者提供免费分章阅读；未认定教材有开放再分发许可。本轮 HTTP GET 200。","codeLicenseUrl":""},"xv6":{"resourceId":"xv6","resourceType":"开源代码","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"kicad":{"resourceId":"kicad","resourceType":"开放文档","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"freertos":{"resourceId":"freertos","resourceType":"开源代码","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"numpy":{"resourceId":"numpy","resourceType":"开源代码","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"scipy":{"resourceId":"scipy","resourceType":"开源代码","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""},"sympy":{"resourceId":"sympy","resourceType":"开源代码","verifiedAt":"2026-11-23","access":"免费公开访问；本轮 HTTP GET 200。系统浏览器与移动网络可用性需在设备上确认。","codeLicenseUrl":""}};
 const resourceLicenseUrls={"d2l":"https://github.com/d2l-ai/d2l-en#license-summary","thinkdsp":"https://github.com/AllenDowney/ThinkDSP#readme","missing":"https://missing.csail.mit.edu/license/","mit6006":"https://ocw.mit.edu/pages/privacy-and-terms-of-use/","cpalg":"https://github.com/cp-algorithms/cp-algorithms/blob/main/LICENSE","algpython":"https://github.com/TheAlgorithms/Python/blob/master/LICENSE.md","ostep":"https://pages.cs.wisc.edu/~remzi/OSTEP/","xv6":"https://github.com/mit-pdos/xv6-riscv/blob/riscv/LICENSE","kicad":"https://www.kicad.org/about/licenses/","freertos":"https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/LICENSE.md","numpy":"https://github.com/numpy/numpy/blob/main/LICENSE.txt","scipy":"https://github.com/scipy/scipy/blob/main/LICENSE.txt","sympy":"https://github.com/sympy/sympy/blob/master/LICENSE"};
@@ -379,15 +661,90 @@ let videos=[
 ];
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').hidden=true,3000)}
 function switchPage(next){page=next;document.querySelectorAll('.page').forEach(e=>e.hidden=e.id!=='page-'+next);document.querySelectorAll('.nav-item').forEach(e=>{e.classList.toggle('active',e.dataset.page===next);e.setAttribute('aria-current',e.dataset.page===next?'page':'false')});if(next==='home')renderRecent();if(next==='profile')renderDocuments();if(next==='library')renderResources();if(next==='diy'){renderEditor();requestAnimationFrame(fitMap)}window.scrollTo({top:0,behavior:'instant'})}
-function fillPrompt(text){$('#prompt').value=text;$('#char-count').textContent=text.length;switchPage('home');$('#prompt').focus()}
-$('#prompt').addEventListener('input',()=>$('#char-count').textContent=$('#prompt').value.length);
+function fillPrompt(text) {
+  if (activeGeneration?.mode === 'create') return;
+  $('#prompt').value = text;
+  createFeedback = '';
+  switchPage('home');
+  renderGenerationControls();
+  $('#prompt').focus();
+}
+$('#prompt').addEventListener('input', () => { createFeedback = ''; renderGenerationControls(); });
+$('#chat-input').addEventListener('input', () => { reviseFeedback = ''; renderGenerationControls(); });
+$('#generate-form').onsubmit = event => { event.preventDefault(); void generateFromPrompt(); };
+$('#chat-form').onsubmit = event => { event.preventDefault(); void reviseFromChat(); };
+$('#cancel-create').onclick = cancelGeneration;
+$('#cancel-revise').onclick = cancelGeneration;
 function saveCurrent(){current.updatedAt=new Date().toISOString();const i=docs.findIndex(d=>d.documentId===current.documentId);if(i>=0)docs[i]=clone(current);else docs.unshift(clone(current));docs.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));storageSet('flowspace.preview.documents',docs);$('#map-status').textContent=saveError?'保存失败 · 请导出 JSON':'已保存在此浏览器 · r'+current.revision}
-function applyEdit(fn){const before=clone(current);try{fn();validate(current);past.push(before);if(past.length>50)past.shift();future=[];current.revision=before.revision+1;candidate=null;saveCurrent();renderEditor()}catch(e){current=before;toast(e.message)}}
-function undo(){if(!past.length)return;future.push(clone(current));const revision=current.revision+1;current=past.pop();current.revision=revision;selected=current.rootId;candidate=null;saveCurrent();renderEditor()}
-function redo(){if(!future.length)return;past.push(clone(current));const revision=current.revision+1;current=future.pop();current.revision=revision;selected=current.rootId;candidate=null;saveCurrent();renderEditor()}
-function openDoc(docId){const doc=docs.find(d=>d.documentId===docId);if(!doc)return;current=clone(doc);selected=current.rootId;past=[];future=[];candidate=null;switchPage('diy')}
-function newMap(){current=makeDoc('新的想法');selected=current.rootId;past=[];future=[];candidate=null;saveCurrent();switchPage('diy');nodeDialog('edit')}
-function generateDemo(){const text=$('#prompt').value.trim();if(!text)return toast('先写下一个主题，或选择下方示例');const title=text.split(/[。\n：:]/)[0].slice(0,28)||'新的想法';current=makeDoc(title,text);const parts=text.split(/[\n；;。]/).map(t=>t.replace(/^[-#*\d.\s]+/,'').trim()).filter(Boolean);if(parts.length>1){parts.slice(0,8).forEach(t=>append(current,current.rootId,t.slice(0,60)))}else{for(const [a,b]of [['核心概念','先明确主题的范围与关键定义'],['关系与结构','整理分类、前提和相互联系'],['例子与应用','添加自己的例子与实际问题']]){const p=append(current,current.rootId,a);append(current,p,b)}}current.messages.push({id:id(),role:'assistant',content:'离线结构演示已创建。这里没有调用 AI：单段输入使用固定分支，长文按句子拆分。你可以手工修改或体验对话候选。',createdAt:new Date().toISOString()});selected=current.rootId;past=[];future=[];saveCurrent();switchPage('diy');toast('已创建演示导图 · 不是 AI 生成结果')}
+function applyEdit(edit) {
+  if (candidate) { toast('请先应用或放弃当前候选。'); return false; }
+  const before = clone(current), previousSelection = selected;
+  try {
+    edit();
+    validate(current);
+    past.push(before);
+    if (past.length > 50) past.shift();
+    future = [];
+    current.revision = before.revision + 1;
+    saveCurrent();
+    renderEditor();
+    return true;
+  } catch (error) {
+    current = before;
+    selected = previousSelection;
+    toast(error.message);
+    return false;
+  }
+}
+function restoreEdit(from, to) {
+  if (candidate || !from.length) return;
+  to.push(clone(current));
+  const revision = current.revision + 1, messages = current.messages;
+  current = from.pop();
+  current.revision = revision;
+  current.messages = messages;
+  selected = current.rootId;
+  saveCurrent();
+  renderEditor();
+}
+function undo() { restoreEdit(past, future); }
+function redo() { restoreEdit(future, past); }
+function keepActiveDocument() {
+  if (candidate) {
+    switchPage('diy');
+    toast('请先应用或放弃当前候选。');
+    return true;
+  }
+  if (activeGeneration) {
+    switchPage(activeGeneration.mode === 'create' ? 'home' : 'diy');
+    toast('请等待生成完成或取消，再切换导图。');
+    return true;
+  }
+  return false;
+}
+function setCurrent(document) {
+  current = clone(document);
+  selected = current.rootId;
+  past = [];
+  future = [];
+  candidate = null;
+  reviseFeedback = '';
+  $('#chat-input').value = '';
+}
+function openDoc(docId) {
+  if (keepActiveDocument()) return;
+  const doc = docs.find(item => item.documentId === docId);
+  if (!doc) return;
+  setCurrent(doc);
+  switchPage('diy');
+}
+function newMap() {
+  if (keepActiveDocument()) return;
+  setCurrent(makeDoc('新的想法'));
+  saveCurrent();
+  switchPage('diy');
+  nodeDialog('edit');
+}
 function renderRecent(){$('#recent-list').innerHTML=docs.slice(0,3).map(d=>`<button class="doc-card" onclick="openDoc('${esc(d.documentId)}')"><span class="doc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="9" width="6" height="6" rx="2"/><path d="M8 12h5V5h4m-4 7v7h4"/><path d="M17 2h5v6h-5zm0 14h5v6h-5z"/></svg></span><span class="doc-copy"><h3>${esc(d.title)}</h3><p>${d.nodes.length} 个节点 · ${date(d.updatedAt)}</p></span><span class="arrow">↗</span></button>`).join('')||'<div class="empty">还没有导图，从上方写下第一个想法吧。</div>'}
 function date(s){return new Date(s).toLocaleDateString('zh-CN',{month:'long',day:'numeric'})}
 function renderVideos(){ $('#video-list').innerHTML=videos.slice(0,3).map((r,i)=>`<button class="video-card" onclick="openResource('${r.id}',true)"><span class="video-art"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 10 7-10 7Z"/></svg></span><span class="video-copy"><span class="tag">${esc(r.category)}</span><h3>${esc(r.title)}</h3><small>${esc(r.source)} · ${esc(r.language)}</small></span></button>`).join('')}
@@ -411,43 +768,157 @@ function openResource(rid,video=false){
   $('#resource-topic').onclick=()=>{closeDialog();fillPrompt(resourceTopic(r));toast('已填入主题描述，未抓取原站全文')};
 }
 
-function selectedNode(){return current.nodes.find(n=>n.id===selected)||current.nodes.find(n=>n.id===current.rootId)}
-function renderEditor(){$('#map-title').textContent=current.title;$('#map-status').textContent=saveError?'保存失败 · 请导出 JSON':'已保存在此浏览器 · r'+current.revision;$('#selected-label').textContent=selectedNode().text;$('#undo').disabled=!past.length;$('#redo').disabled=!future.length;$('#node-count').textContent=current.nodes.length+' 个节点';$('#source-text').textContent=current.sourceText||'这是一张手工创建的导图。';$('#chat-log').innerHTML=current.messages.slice(-8).map(m=>`<div class="message ${m.role==='user'?'user':''}">${esc(m.content)}</div>`).join('')||'选中一个分支，继续补充、重写或整理。演示不会连接模型。';$('#candidate-box').innerHTML=candidate?`<div class="candidate"><strong>待确认的演示修改</strong><p>在「${esc(candidate.parentText)}」下新增：${esc(candidate.text)}</p><div class="row" style="margin-top:8px"><button class="primary" onclick="applyCandidate()">应用修改</button><button onclick="candidate=null;renderEditor()">放弃</button></div></div>`:'';drawMap()}
-function nodeDialog(kind){if(kind==='addSibling'&&selectedNode().id===current.rootId)return toast('根节点没有同级节点，请添加子节点');const n=selectedNode();dialog(`<h2>${kind==='edit'?'编辑节点':kind==='addChild'?'添加子节点':'添加同级节点'}</h2><form id="node-form"><label for="node-text">节点文字</label><input id="node-text" maxlength="500" required value="${kind==='edit'?esc(n.text):''}" autocomplete="off"><label for="node-note">备注（可选）</label><textarea id="node-note" style="min-height:85px" maxlength="10000">${kind==='edit'?esc(n.note):''}</textarea><div class="actions"><button type="button" onclick="closeDialog()">取消</button><button class="primary" type="submit">保存</button></div></form>`);$('#node-form').onsubmit=e=>{e.preventDefault();const text=$('#node-text').value.trim(),note=$('#node-note').value.trim();if(!text)return;applyEdit(()=>{if(kind==='edit'){n.text=text;n.note=note;if(n.id===current.rootId)current.title=text.slice(0,200)}else{const parent=kind==='addChild'?n.id:n.parentId;const p=current.nodes.find(x=>x.id===parent);p.collapsed=false;selected=append(current,parent,text);selectedNode().note=note}});closeDialog();fitMap()};setTimeout(()=>$('#node-text').focus(),0)}
-function deleteNode(){const n=selectedNode();if(n.id===current.rootId)return toast('根节点不能删除');dialog(`<h2>删除这个分支？</h2><p>「${esc(n.text)}」及全部子节点将被删除。你可以通过撤销恢复。</p><div class="actions"><button onclick="closeDialog()">保留</button><button class="primary" id="confirm-delete">删除分支</button></div>`);$('#confirm-delete').onclick=()=>{applyEdit(()=>{const remove=new Set([n.id]);let size;do{size=remove.size;current.nodes.forEach(x=>{if(remove.has(x.parentId))remove.add(x.id)})}while(size!==remove.size);current.nodes=current.nodes.filter(x=>!remove.has(x.id));selected=n.parentId});closeDialog();fitMap()}}
+function selectedNode(document = current) {
+  return document.nodes.find(node => node.id === selected) || document.nodes.find(node => node.id === document.rootId);
+}
+function candidateIsStale() {
+  return candidate && (candidate.document.documentId !== current.documentId || candidate.baseRevision !== current.revision);
+}
+function shownDocument() {
+  return candidate && !candidateIsStale() ? candidate.document : current;
+}
+function renderEditor() {
+  const view = shownDocument();
+  $('#map-title').textContent = view.title;
+  $('#map-status').textContent = view !== current ? '候选预览 · 未应用' : saveError ?
+    '保存失败 · 请导出 JSON' : docs.some(doc => doc.documentId === current.documentId) ? '已保存在此浏览器 · r' + current.revision : '尚未保存';
+  $('#selected-label').textContent = selectedNode(view).text;
+  $('#undo').disabled = !!candidate || !past.length;
+  $('#redo').disabled = !!candidate || !future.length;
+  $('#add-node').disabled = !!candidate;
+  $('#edit-node').disabled = !!candidate;
+  $('#node-count').textContent = view.nodes.length + ' 个节点';
+  $('#source-text').textContent = current.sourceText || '这是一张手工创建的导图。';
+  const conversation = $('#chat-log');
+  conversation.innerHTML = current.messages.slice(-8).map(message => {
+    const text = message.content === current.sourceText && message.content.length > 280 ?
+      message.content.slice(0, 280) + '…（全文见「原始输入」）' : message.content;
+    return '<div class="message ' + (message.role === 'user' ? 'user' : '') + '">' + esc(text) + '</div>';
+  }).join('') || '可以试试「为这个分支补充一个例子」。';
+  conversation.scrollTop = conversation.scrollHeight;
+  const review = $('#candidate-box'), stale = candidateIsStale();
+  review.hidden = !candidate;
+  review.innerHTML = candidate ?
+    '<div class="candidate"><strong>' + (stale ? '候选已过期' : '候选预览 · ' + esc(candidate.scopeText)) + '</strong><p>' +
+    (stale ? '导图已有新的编辑，请放弃候选后重新生成。' : esc(candidate.summary)) +
+    '</p><div class="row"><button class="primary" id="apply-candidate" onclick="applyCandidate()"' +
+    (stale ? ' disabled' : '') + '>确认应用</button><button class="secondary" onclick="discardCandidate()">放弃候选</button></div></div>' : '';
+  renderGenerationControls();
+  drawMap(view);
+}
+function nodeDialog(kind){if(candidate)return toast('请先应用或放弃当前候选。');if(kind==='addSibling'&&selectedNode().id===current.rootId)return toast('根节点没有同级节点，请添加子节点');const n=selectedNode();dialog(`<h2>${kind==='edit'?'编辑节点':kind==='addChild'?'添加子节点':'添加同级节点'}</h2><form id="node-form"><label for="node-text">节点文字</label><input id="node-text" maxlength="500" required value="${kind==='edit'?esc(n.text):''}" autocomplete="off"><label for="node-note">备注（可选）</label><textarea id="node-note" style="min-height:85px" maxlength="10000">${kind==='edit'?esc(n.note):''}</textarea><div class="actions"><button type="button" onclick="closeDialog()">取消</button><button class="primary" type="submit">保存</button></div></form>`);$('#node-form').onsubmit=e=>{e.preventDefault();const text=$('#node-text').value.trim(),note=$('#node-note').value.trim();if(!text)return;applyEdit(()=>{if(kind==='edit'){n.text=text;n.note=note;if(n.id===current.rootId)current.title=text.slice(0,200)}else{const parent=kind==='addChild'?n.id:n.parentId;const p=current.nodes.find(x=>x.id===parent);p.collapsed=false;selected=append(current,parent,text);selectedNode().note=note}});closeDialog();fitMap()};setTimeout(()=>$('#node-text').focus(),0)}
+function deleteNode(){if(candidate)return toast('请先应用或放弃当前候选。');const n=selectedNode();if(n.id===current.rootId)return toast('根节点不能删除');dialog(`<h2>删除这个分支？</h2><p>「${esc(n.text)}」及全部子节点将被删除。你可以通过撤销恢复。</p><div class="actions"><button onclick="closeDialog()">保留</button><button class="primary" id="confirm-delete">删除分支</button></div>`);$('#confirm-delete').onclick=()=>{applyEdit(()=>{const remove=new Set([n.id]);let size;do{size=remove.size;current.nodes.forEach(x=>{if(remove.has(x.parentId))remove.add(x.id)})}while(size!==remove.size);current.nodes=current.nodes.filter(x=>!remove.has(x.id));selected=n.parentId});closeDialog();fitMap()}}
 function toggleCollapse(){if(!current.nodes.some(n=>n.parentId===selected))return toast('这个节点还没有子节点');applyEdit(()=>selectedNode().collapsed=!selectedNode().collapsed);fitMap()}
 function changeLayout(){applyEdit(()=>current.layout=current.layout==='right'?'down':'right');fitMap()}
-function chatDemo(){const text=$('#chat-input').value.trim();if(!text)return toast('先写一句想继续整理的内容');candidate={text:text.slice(0,500),parentId:selectedNode().id,parentText:selectedNode().text,revision:current.revision};current.messages.push({id:id(),role:'user',content:text,createdAt:new Date().toISOString()},{id:id(),role:'assistant',content:'演示候选已就绪：把你的输入作为选中分支的新节点。真实应用由 AI 理解并修改结构，此预览不执行推理。',createdAt:new Date().toISOString()});$('#chat-input').value='';saveCurrent();renderEditor()}
-function applyCandidate(){const c=candidate;if(!c)return;if(c.revision!==current.revision){candidate=null;renderEditor();return toast('导图已修改，请重新发起候选')}applyEdit(()=>{const p=current.nodes.find(n=>n.id===c.parentId);if(!p)throw Error('目标分支不存在');p.collapsed=false;selected=append(current,p.id,c.text)});fitMap();toast('已应用演示修改，可撤销')}
-function visibleTree(){const root=current.nodes.find(n=>n.id===current.rootId);const build=n=>({node:n,children:n.collapsed?[]:current.nodes.filter(x=>x.parentId===n.id).sort((a,b)=>a.order-b.order).map(build)});return build(root)}
-function layoutTree(){let leaf=0,maxDepth=0;const coords=[],tree=visibleTree();function place(t,depth){maxDepth=Math.max(maxDepth,depth);const childY=t.children.map(c=>place(c,depth+1));const y=childY.length?childY.reduce((a,b)=>a+b,0)/childY.length:leaf++*76+55;coords.push({node:t.node,x:depth*205+30,y});return y}place(tree,0);if(current.layout==='down')coords.forEach(p=>{const x=p.x;p.x=p.y*1.9;p.y=x*.7+20});return coords}
-function drawMap(){const coords=layoutTree(),w=150,h=44,lookup=new Map(coords.map(p=>[p.node.id,p]));bounds={w:Math.max(...coords.map(p=>p.x))+w+35,h:Math.max(...coords.map(p=>p.y))+h+55};let edges='';for(const p of coords){const parent=lookup.get(p.node.parentId);if(!parent)continue;const down=current.layout==='down';const a=down?[parent.x+w/2,parent.y+h]:[parent.x+w,parent.y+h/2],b=down?[p.x+w/2,p.y]:[p.x,p.y+h/2];const path=down?`M${a} C${a[0]},${(a[1]+b[1])/2} ${b[0]},${(a[1]+b[1])/2} ${b}`:`M${a} C${(a[0]+b[0])/2},${a[1]} ${(a[0]+b[0])/2},${b[1]} ${b}`;edges+=`<path d="${path}" stroke="#9797C7" stroke-width="1.5" fill="none"/>`}const dark=document.documentElement.dataset.theme==='dark';$('#map-svg').innerHTML=`<g id="map-transform">${edges}${coords.map(p=>{const root=p.node.id===current.rootId,sel=p.node.id===selected;const fill=root?(dark?'#B1AEFF':'#5354C7'):dark?'#1C1D22':'#FFFFFF',txt=root?(dark?'#101114':'#ffffff'):dark?'#F5F5F7':'#1D1D1F';const text=p.node.text.length>12?p.node.text.slice(0,12)+'…':p.node.text;return `<g role="button" tabindex="0" aria-label="选择节点：${esc(p.node.text)}" data-node="${p.node.id}" transform="translate(${p.x},${p.y})"><title>${esc(p.node.text)}${p.node.note?' · '+esc(p.node.note):''}</title><rect width="150" height="44" rx="11" fill="${fill}" stroke="${sel?(dark?'#B1AEFF':'#5354C7'):root?'#5354C7':dark?'#34353E':'#E1E1E6'}" stroke-width="${sel?2.5:1}"/><text x="75" y="27" text-anchor="middle" fill="${txt}">${esc(text)}</text>${p.node.collapsed?'<circle cx="150" cy="22" r="8" fill="#5354C7"/><text x="150" y="26" text-anchor="middle" fill="white" style="font-size:11px">+</text>':''}</g>`}).join('')}</g>`;$('#map-svg').querySelectorAll('[data-node]').forEach(g=>{const select=()=>{selected=g.dataset.node;renderEditor()};g.onclick=e=>{e.stopPropagation();select()};g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select()}}});updateTransform()}
+function applyCandidate() {
+  if (!candidate || candidateIsStale()) return;
+  const review = candidate;
+  candidate = null;
+  if (applyEdit(() => {
+    current.nodes = clone(review.document.nodes);
+    current.title = review.document.title;
+    appendChat(current, 'assistant', review.summary);
+  })) {
+    $('#chat-input').value = '';
+    reviseFeedback = '';
+    renderGenerationControls();
+    toast('修改已应用，可以撤销。');
+  } else {
+    candidate = review;
+    renderEditor();
+  }
+}
+function discardCandidate() {
+  candidate = null;
+  if (!current.nodes.some(node => node.id === selected)) selected = current.rootId;
+  renderEditor();
+  fitMap();
+}
+function visibleTree(doc = current){const root=doc.nodes.find(n=>n.id===doc.rootId);const build=n=>({node:n,children:n.collapsed?[]:doc.nodes.filter(x=>x.parentId===n.id).sort((a,b)=>a.order-b.order).map(build)});return build(root)}
+function layoutTree(doc = current){let leaf=0,maxDepth=0;const coords=[],tree=visibleTree(doc);function place(t,depth){maxDepth=Math.max(maxDepth,depth);const childY=t.children.map(c=>place(c,depth+1));const y=childY.length?childY.reduce((a,b)=>a+b,0)/childY.length:leaf++*76+55;coords.push({node:t.node,x:depth*205+30,y});return y}place(tree,0);if(doc.layout==='down')coords.forEach(p=>{const x=p.x;p.x=p.y*1.9;p.y=x*.7+20});return coords}
+function drawMap(doc = shownDocument()){const coords=layoutTree(doc),w=150,h=44,lookup=new Map(coords.map(p=>[p.node.id,p]));bounds={w:Math.max(...coords.map(p=>p.x))+w+35,h:Math.max(...coords.map(p=>p.y))+h+55};let edges='';for(const p of coords){const parent=lookup.get(p.node.parentId);if(!parent)continue;const down=doc.layout==='down';const a=down?[parent.x+w/2,parent.y+h]:[parent.x+w,parent.y+h/2],b=down?[p.x+w/2,p.y]:[p.x,p.y+h/2];const path=down?`M${a} C${a[0]},${(a[1]+b[1])/2} ${b[0]},${(a[1]+b[1])/2} ${b}`:`M${a} C${(a[0]+b[0])/2},${a[1]} ${(a[0]+b[0])/2},${b[1]} ${b}`;edges+=`<path d="${path}" stroke="#9797C7" stroke-width="1.5" fill="none"/>`}const dark=document.documentElement.dataset.theme==='dark';$('#map-svg').innerHTML=`<g id="map-transform">${edges}${coords.map(p=>{const root=p.node.id===doc.rootId,sel=p.node.id===selected;const fill=root?(dark?'#B1AEFF':'#5354C7'):dark?'#1C1D22':'#FFFFFF',txt=root?(dark?'#101114':'#ffffff'):dark?'#F5F5F7':'#1D1D1F';const text=p.node.text.length>12?p.node.text.slice(0,12)+'…':p.node.text;return `<g role="button" tabindex="0" aria-label="选择节点：${esc(p.node.text)}" data-node="${esc(p.node.id)}" transform="translate(${p.x},${p.y})"><title>${esc(p.node.text)}${p.node.note?' · '+esc(p.node.note):''}</title><rect width="150" height="44" rx="11" fill="${fill}" stroke="${sel?(dark?'#B1AEFF':'#5354C7'):root?'#5354C7':dark?'#34353E':'#E1E1E6'}" stroke-width="${sel?2.5:1}"/><text x="75" y="27" text-anchor="middle" fill="${txt}">${esc(text)}</text>${p.node.collapsed?'<circle cx="150" cy="22" r="8" fill="#5354C7"/><text x="150" y="26" text-anchor="middle" fill="white" style="font-size:11px">+</text>':''}</g>`}).join('')}</g>`;$('#map-svg').querySelectorAll('[data-node]').forEach(g=>{const select=()=>{selected=g.dataset.node;renderEditor()};g.onclick=e=>{e.stopPropagation();select()};g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select()}}});updateTransform()}
 function updateTransform(){$('#map-transform')?.setAttribute('transform',`translate(${pan.x},${pan.y}) scale(${zoom})`);const percent=zoom*100;$('#zoom-label').textContent=percent<.1?'<0.1%':(percent<1?percent.toFixed(1):Math.round(percent))+'%'}
-function fitMap(){const b=$('#canvas-wrap').getBoundingClientRect();if(!b.width)return;zoom=Math.max(.000001,Math.min(1.15,(b.width-25)/bounds.w,(b.height-65)/bounds.h));pan={x:(b.width-bounds.w*zoom)/2,y:(b.height-bounds.h*zoom)/2-10};updateTransform()}
+function fitMap(scopeId = '') {
+  const canvas = $('#canvas-wrap').getBoundingClientRect();
+  if (!canvas.width) return;
+  let region = { x: 0, y: 0, ...bounds };
+  const view = shownDocument();
+  if (scopeId && scopeId !== view.rootId) {
+    const branch = new Set([scopeId]);
+    for (let depth = 0; depth < 8; depth++) {
+      for (const node of view.nodes) if (branch.has(node.parentId)) branch.add(node.id);
+    }
+    const locations = layoutTree(view).filter(item => branch.has(item.node.id));
+    if (locations.length) {
+      const x = Math.min(...locations.map(item => item.x)) - 18;
+      const y = Math.min(...locations.map(item => item.y)) - 18;
+      region = { x, y, w: Math.max(...locations.map(item => item.x)) + 168 - x,
+        h: Math.max(...locations.map(item => item.y)) + 62 - y };
+    }
+  }
+  zoom = Math.max(.000001, Math.min(1.15, (canvas.width - 25) / region.w, (canvas.height - 65) / region.h));
+  pan = { x: (canvas.width - region.w * zoom) / 2 - region.x * zoom,
+    y: (canvas.height - region.h * zoom) / 2 - region.y * zoom - 10 };
+  updateTransform();
+}
 function zoomBy(factor){const next=Math.min(2.5,Math.max(.000001,zoom*factor)),b=$('#canvas-wrap').getBoundingClientRect();pan={x:b.width/2-(b.width/2-pan.x)*next/zoom,y:b.height/2-(b.height/2-pan.y)*next/zoom};zoom=next;updateTransform()}
 let drag=null;$('#map-svg').addEventListener('pointerdown',e=>{if(e.target.closest('[data-node]'))return;drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};$('#map-svg').setPointerCapture(e.pointerId)});$('#map-svg').addEventListener('pointermove',e=>{if(drag){pan={x:drag.px+e.clientX-drag.x,y:drag.py+e.clientY-drag.y};updateTransform()}});$('#map-svg').addEventListener('pointerup',()=>drag=null);$('#map-svg').addEventListener('pointercancel',()=>drag=null);$('#map-svg').addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?.92:1.08)},{passive:false});window.addEventListener('resize',()=>{if(page==='diy')fitMap()});
 function dialog(content){$('#dialog-content').innerHTML=`<div style="display:flex;justify-content:flex-end;height:30px"><button class="close" aria-label="关闭弹窗" onclick="closeDialog()">×</button></div>`+content;if(!$('#dialog').open)$('#dialog').showModal()}
 function closeDialog(){$('#dialog').close()}
 $('#dialog').addEventListener('click',e=>{if(e.target===$('#dialog'))closeDialog()});
 function renderDocuments(){const q=$('#document-search').value.trim().toLowerCase();$('#profile-meta').textContent=`${docs.length} 张导图 · 本地保存，无需登录`;$('#document-list').innerHTML=docs.filter(d=>d.title.toLowerCase().includes(q)).map(d=>`<div class="doc-manage"><button class="open-doc" onclick="openDoc('${d.documentId}')"><strong>${esc(d.title)}</strong><small>${d.nodes.length} 个节点 · ${date(d.updatedAt)}</small></button><button class="icon-btn" aria-label="重命名 ${esc(d.title)}" onclick="renameDoc('${d.documentId}')">✎</button><button class="icon-btn danger" aria-label="删除 ${esc(d.title)}" onclick="removeDoc('${d.documentId}')">×</button></div>`).join('')||'<div class="empty">没有匹配的导图。<br>从首页开始创建，或恢复 JSON 备份。</div>'}
-function renameDoc(did){const d=docs.find(d=>d.documentId===did);dialog(`<h2>重命名导图</h2><form id="rename-form"><label for="rename">名称</label><input id="rename" maxlength="200" required value="${esc(d.title)}"><div class="actions"><button type="button" onclick="closeDialog()">取消</button><button class="primary">保存</button></div></form>`);$('#rename-form').onsubmit=e=>{e.preventDefault();const title=$('#rename').value.trim();if(!title)return;d.title=title;d.revision++;d.updatedAt=new Date().toISOString();if(current.documentId===did){current=clone(d);past=[];future=[];candidate=null}storageSet('flowspace.preview.documents',docs);renderDocuments();closeDialog()}}
-function removeDoc(did){const d=docs.find(d=>d.documentId===did);dialog(`<h2>删除这张导图？</h2><p>「${esc(d.title)}」将从此浏览器移除。没有云端副本，建议先导出 JSON。</p><div class="actions"><button onclick="closeDialog()">取消</button><button class="primary" id="delete-doc">删除</button></div>`);$('#delete-doc').onclick=()=>{docs=docs.filter(d=>d.documentId!==did);storageSet('flowspace.preview.documents',docs);if(current.documentId===did){current=docs.length?clone(docs[0]):makeDoc('新的想法');selected=current.rootId;past=[];future=[];candidate=null}renderDocuments();closeDialog();toast('导图已删除')}}
-function saveSettings(){settings.themeMode=$('#theme').value;settings.backendUrl=$('#backend-url').value.trim();storageSet('flowspace.preview.settings',settings);applyTheme();toast('偏好已保存')}
-function applyTheme(){document.documentElement.dataset.theme=settings.themeMode==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):settings.themeMode;document.documentElement.classList.toggle('reduce-motion',settings.reduceMotion);$('#theme').value=settings.themeMode;$('#backend-url').value=settings.backendUrl;$('#reduce-motion').setAttribute('aria-checked',String(settings.reduceMotion));if(page==='diy')drawMap()}
+function renameDoc(did){const d=docs.find(d=>d.documentId===did);if(!d)return;if(current.documentId===did&&candidate){keepActiveDocument();return}dialog(`<h2>重命名导图</h2><form id="rename-form"><label for="rename">名称</label><input id="rename" maxlength="200" required value="${esc(d.title)}"><div class="actions"><button type="button" onclick="closeDialog()">取消</button><button class="primary">保存</button></div></form>`);$('#rename-form').onsubmit=e=>{e.preventDefault();const title=$('#rename').value.trim();if(!title)return;if(current.documentId===did){if(!applyEdit(()=>{current.title=title}))return}else{d.title=title;d.revision++;d.updatedAt=new Date().toISOString();storageSet('flowspace.preview.documents',docs)}renderDocuments();closeDialog()}}
+function removeDoc(did){const d=docs.find(d=>d.documentId===did);if(!d||current.documentId===did&&keepActiveDocument())return;dialog(`<h2>删除这张导图？</h2><p>「${esc(d.title)}」将从此浏览器移除。没有云端副本，建议先导出 JSON。</p><div class="actions"><button onclick="closeDialog()">取消</button><button class="primary" id="delete-doc">删除</button></div>`);$('#delete-doc').onclick=()=>{if(current.documentId===did&&keepActiveDocument()){closeDialog();return}docs=docs.filter(d=>d.documentId!==did);storageSet('flowspace.preview.documents',docs);if(current.documentId===did){setCurrent(docs[0]||makeDoc('新的想法'))}renderDocuments();closeDialog();toast('导图已删除')}}
+function saveSettings() {
+  settings.themeMode = $('#theme').value;
+  storageSet('flowspace.preview.settings', settings);
+  applyTheme();
+  toast('偏好已保存');
+}
+function applyTheme(){document.documentElement.dataset.theme=settings.themeMode==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):settings.themeMode;document.documentElement.classList.toggle('reduce-motion',settings.reduceMotion);$('#theme').value=settings.themeMode;$('#reduce-motion').setAttribute('aria-checked',String(settings.reduceMotion));if(page==='diy')drawMap()}
 function toggleMotion(){settings.reduceMotion=!settings.reduceMotion;storageSet('flowspace.preview.settings',settings);applyTheme()}
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(settings.themeMode==='system')applyTheme()});
-async function checkConnection(){const status=$('#connection-status');try{const url=new URL($('#backend-url').value.trim());if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw Error('请输入无用户名/密码的 HTTP(S) 后端地址');settings.backendUrl=url.href.replace(/\/$/,'');storageSet('flowspace.preview.settings',settings);status.textContent='正在请求真实后端 /api/health…';const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);try{const response=await fetch(settings.backendUrl+'/api/health',{signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status);const data=await response.json();status.textContent=`${data.configured?'服务已配置':'服务尚未配置模型'} · ${data.model||'未提供模型'} · ${data.message||'连接成功'}`}finally{clearTimeout(timer)}}catch(e){status.textContent='无法连接：'+e.message+'。请检查服务、局域网与跨域配置。'}}
+async function checkConnection() {
+  const status = $('#connection-status');
+  $('#backend-location').textContent = gatewayOrigin || '请从本机网关打开生成页面。';
+  if (!gatewayOrigin) { status.textContent = '离线打开'; return; }
+  status.textContent = '正在检查网关…';
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await fetch('/api/health', { signal: controller.signal });
+    if (!response.ok) throw Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (typeof data.configured !== 'boolean') throw Error('状态接口返回格式不正确');
+    gatewayStatus = data;
+    status.textContent = data.configured ? '网关已配置 · ' + data.model : '网关已连接，服务端尚未配置模型';
+  } catch {
+    gatewayStatus = { message: '无法连接 AI 网关，请检查本机服务。' };
+    status.textContent = gatewayStatus.message;
+  } finally {
+    clearTimeout(timer);
+    renderGenerationControls();
+  }
+}
 function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function openExport(){dialog('<h2>把想法带走</h2><p>JSON 可恢复编辑；Markdown 适合继续整理；PNG 导出完整导图。</p><div style="display:grid;gap:10px;margin-top:18px"><button class="outline" onclick="exportDoc(\'json\')">JSON · 可编辑备份</button><button class="outline" onclick="exportDoc(\'markdown\')">Markdown · 层级大纲</button><button class="primary" onclick="exportDoc(\'png\')">PNG · 完整导图图片</button></div>')}
-async function exportDoc(format){const name=current.title.replace(/[\\/:*?"<>|]/g,'_').slice(0,60)||'FlowSpace';if(format==='json'){validate(current);const backup=new Blob([JSON.stringify({format:'flowspace-mindmap',version:1,document:current},null,2)],{type:'application/json'});if(backup.size>8*1024*1024)return toast('导图备份超过 8MB，请缩减超长对话或备注后重试');download(backup,name+'.json')}if(format==='markdown'){const lines=['# '+current.title,''];function visit(pid,depth){for(const n of current.nodes.filter(n=>n.parentId===pid).sort((a,b)=>a.order-b.order)){lines.push('  '.repeat(depth)+'- '+n.text);if(n.note)lines.push('  '.repeat(depth+1)+n.note);visit(n.id,depth+1)}}visit(current.rootId,0);download(new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}),name+'.md')}if(format==='png'){try{const unfolded=clone(current);unfolded.nodes.forEach(n=>n.collapsed=false);const original=current;current=unfolded;drawMap();const svg=$('#map-svg').cloneNode(true),fullBounds={...bounds};current=original;drawMap();const scale=Math.min(2,4096/Math.max(fullBounds.w,fullBounds.h));svg.setAttribute('width',fullBounds.w);svg.setAttribute('height',fullBounds.h);svg.setAttribute('viewBox',`0 0 ${fullBounds.w} ${fullBounds.h}`);svg.querySelector('#map-transform').removeAttribute('transform');const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill','#F5F5F7');svg.insertBefore(bg,svg.firstChild);const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('图片转换失败'));img.src=url});const canvas=document.createElement('canvas');canvas.width=Math.round(fullBounds.w*scale);canvas.height=Math.round(fullBounds.h*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('PNG 编码失败');download(blob,name+'.png')}catch(e){return toast(e.message)}}closeDialog();toast('已准备导出，请查看浏览器下载')}
+async function exportDoc(format){const name=current.title.replace(/[\\/:*?"<>|]/g,'_').slice(0,60)||'FlowSpace';if(format==='json'){validate(current);const backup=new Blob([JSON.stringify({format:'flowspace-mindmap',version:1,document:current},null,2)],{type:'application/json'});if(backup.size>8*1024*1024)return toast('导图备份超过 8MB，请缩减超长对话或备注后重试');download(backup,name+'.json')}if(format==='markdown'){const lines=['# '+current.title,''];function visit(pid,depth){for(const n of current.nodes.filter(n=>n.parentId===pid).sort((a,b)=>a.order-b.order)){lines.push('  '.repeat(depth)+'- '+n.text);if(n.note)lines.push('  '.repeat(depth+1)+n.note);visit(n.id,depth+1)}}visit(current.rootId,0);download(new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}),name+'.md')}if(format==='png'){try{const unfolded=clone(current);unfolded.nodes.forEach(n=>n.collapsed=false);drawMap(unfolded);const svg=$('#map-svg').cloneNode(true),fullBounds={...bounds};drawMap();const scale=Math.min(2,4096/Math.max(fullBounds.w,fullBounds.h));svg.setAttribute('width',fullBounds.w);svg.setAttribute('height',fullBounds.h);svg.setAttribute('viewBox',`0 0 ${fullBounds.w} ${fullBounds.h}`);svg.querySelector('#map-transform').removeAttribute('transform');const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill','#F5F5F7');svg.insertBefore(bg,svg.firstChild);const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('图片转换失败'));img.src=url});const canvas=document.createElement('canvas');canvas.width=Math.round(fullBounds.w*scale);canvas.height=Math.round(fullBounds.h*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('PNG 编码失败');download(blob,name+'.png')}catch(e){return toast(e.message)}}closeDialog();toast('已准备导出，请查看浏览器下载')}
 function validate(doc){if(!doc||doc.schemaVersion!==1||!Array.isArray(doc.nodes)||!doc.nodes.length||doc.nodes.length>500)throw Error('JSON 文档格式无效（1–500 个节点）');if(typeof doc.title!=='string'||!doc.title.trim()||typeof doc.documentId!=='string'||!Number.isInteger(doc.revision)||doc.revision<0||!['right','down'].includes(doc.layout))throw Error('文档信息不完整');const ids=new Set();for(const n of doc.nodes){if(typeof n.id!=='string'||!/^[-A-Za-z0-9_]+$/.test(n.id)||ids.has(n.id)||typeof n.parentId!=='string'||typeof n.text!=='string'||!n.text.trim()||n.text.length>500||typeof n.note!=='string'||typeof n.collapsed!=='boolean'||!Number.isInteger(n.order))throw Error('节点格式无效或 ID 重复');ids.add(n.id)}const root=doc.nodes.find(n=>n.id===doc.rootId);if(!root||root.parentId!=='')throw Error('缺少合法根节点');for(const n of doc.nodes){let cur=n,depth=1,seen=new Set();while(cur.id!==doc.rootId){if(seen.has(cur.id))throw Error('导图包含循环');seen.add(cur.id);cur=doc.nodes.find(x=>x.id===cur.parentId);if(!cur)throw Error('节点没有连接到根');if(++depth>8)throw Error('导图最多支持 8 层')} }if(!Array.isArray(doc.messages)||typeof doc.sourceText!=='string'||!doc.messages.every(m=>m&&typeof m.id==='string'&&typeof m.role==='string'&&typeof m.content==='string'&&typeof m.createdAt==='string')||typeof doc.createdAt!=='string'||typeof doc.updatedAt!=='string')throw Error('来源与对话字段无效');return true}
-$('#import-file').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>8*1024*1024)throw Error('备份文件不能超过 8 MB');const data=JSON.parse((await file.text()).replace(/^\uFEFF/,''));if(data&&('format' in data||'document' in data)&&(data.format!=='flowspace-mindmap'||data.version!==1))throw Error('不支持的 FlowSpace 备份格式或版本');const doc=data&&data.format==='flowspace-mindmap'?data.document:data;validate(doc);doc.documentId='map_'+id();doc.revision=0;doc.createdAt=new Date().toISOString();doc.updatedAt=doc.createdAt;current=doc;selected=doc.rootId;past=[];future=[];candidate=null;saveCurrent();switchPage('diy');toast('JSON 已恢复为新的导图')}catch(error){toast('恢复失败：'+error.message)}finally{e.target.value=''}};
+$('#import-file').onchange=async e=>{try{const file=e.target.files[0];if(!file||keepActiveDocument())return;if(file.size>8*1024*1024)throw Error('备份文件不能超过 8 MB');const data=JSON.parse((await file.text()).replace(/^\uFEFF/,''));if(data&&('format' in data||'document' in data)&&(data.format!=='flowspace-mindmap'||data.version!==1))throw Error('不支持的 FlowSpace 备份格式或版本');const doc=data&&data.format==='flowspace-mindmap'?data.document:data;validate(doc);doc.documentId='map_'+id();doc.revision=0;doc.createdAt=new Date().toISOString();doc.updatedAt=doc.createdAt;if(keepActiveDocument())return;setCurrent(doc);saveCurrent();switchPage('diy');toast('JSON 已恢复为新的导图')}catch(error){toast('恢复失败：'+error.message)}finally{e.target.value=''}};
 function openHandoff(){dialog(`<span class="tag">团队交接 · 四个一级页面</span><h2>把页面做完整，<br>把数据连起来。</h2><p>珍珠灰背景、石墨正文、靛蓝重点色；手机四栏导航。此预览展示布局与交互，最终交付为鸿蒙原生应用。</p><div class="handoff-block"><h3>01 首页 · 赵紫石</h3><p>自然语言/长文输入、示例、最近导图、工科学习视频。输入校验、空态、打开原站；主题与最近文档接公共数据。</p></div><div class="handoff-block"><h3>02 DIY 导图 · 黄崇杰</h3><p>可平移缩放的节点画布、手工编辑、撤销重做、布局与折叠。对话候选先预览再应用；取消或失败不破坏旧图。JSON、Markdown、完整 PNG 导出。</p></div><div class="handoff-block"><h3>03 资料库 · 陈珂睿</h3><p>工科开放/开源资源分类、搜索、详情、来源与许可、原站入口。用主题创建，不假装已抓取原站全文。</p></div><div class="handoff-block"><h3>04 个人 · 白长林</h3><p>本地导图搜索/打开/改名/删除、JSON 恢复、外观、减少动效、后端地址与真实连接检测。没有账号登录占位。</p></div><div class="handoff-block"><h3>公共工程 · 马兆坤</h3><p>统一领域模型、文档命令、SQLite、AI 后端与流式候选、集成构建和答辩。模型密钥仅留服务端，不放客户端或预览文件。</p></div><div class="notice">本预览：手工编辑、本地保存、备份恢复和导出真实可用；生成/对话为明确标注的固定规则演示，不能用于宣称真实 AI 已接入。原生应用验收另行记录。</div>`)}
 
-function openExample(){const matches=docs.filter(d=>d.documentId===NATIVE_EXAMPLE.documentId||d.rootId===NATIVE_EXAMPLE.rootId).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));if(matches.length){openDoc(matches[0].documentId);return}current=clone(NATIVE_EXAMPLE);selected=current.rootId;past=[];future=[];candidate=null;saveCurrent();switchPage('diy')}
+function openExample() {
+  if (keepActiveDocument()) return;
+  const matches = docs.filter(doc => doc.documentId === NATIVE_EXAMPLE.documentId || doc.rootId === NATIVE_EXAMPLE.rootId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (matches.length) { openDoc(matches[0].documentId); return; }
+  setCurrent(NATIVE_EXAMPLE);
+  saveCurrent();
+  switchPage('diy');
+}
 function openEditorMenu(){dialog('<h2>导图操作</h2><div class="menu-grid"><button onclick="closeDialog();nodeDialog(\'edit\')">编辑选中节点</button><button onclick="closeDialog();nodeDialog(\'addSibling\')">添加同级节点</button><button onclick="closeDialog();toggleCollapse()">折叠 / 展开分支</button><button onclick="closeDialog();changeLayout()">切换横向 / 纵向</button><button onclick="closeDialog();newMap()">新建空白导图</button><button class="danger" onclick="closeDialog();deleteNode()">删除选中分支</button></div>')}
-function handleKeyboard(event){if(event.isComposing||$('#dialog').open)return;const target=event.target||{},typing=['INPUT','TEXTAREA','SELECT'].includes(target.tagName)||target.isContentEditable;if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();if(page==='home')generateDemo();else if(page==='diy')chatDemo();return}if(event.key==='Enter'&&target.id==='chat-input'&&!event.shiftKey){event.preventDefault();chatDemo();return}if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'&&page==='diy'){event.preventDefault();event.shiftKey?redo():undo()}}
+function handleKeyboard(event){if(event.isComposing||$('#dialog').open)return;const target=event.target||{},typing=['INPUT','TEXTAREA','SELECT'].includes(target.tagName)||target.isContentEditable;if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();if(page==='home')generateFromPrompt();else if(page==='diy')reviseFromChat();return}if(event.key==='Enter'&&target.id==='chat-input'&&!event.shiftKey){event.preventDefault();reviseFromChat();return}if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'&&page==='diy'){event.preventDefault();event.shiftKey?redo():undo()}}
 document.addEventListener('keydown',handleKeyboard);
 
 applyTheme();renderRecent();renderVideos();renderResources();renderDocuments();renderEditor();storageSet('flowspace.preview.documents',docs);
+void checkConnection();
 </script></body></html>

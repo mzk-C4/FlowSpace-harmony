@@ -1,11 +1,14 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { GatewayError, validateRequest, validateCandidate } from './validation.mjs';
-import { readConfig, buildMessages, callModel, parseOutput } from './llm.mjs';
+import { GatewayError, validateRequest } from './validation.mjs';
+import { readConfig, buildMessages, callModel, parseOutput, assembleCandidate } from './llm.mjs';
 
-export function createGateway({ env = process.env, timeoutMs = 120000, cacheTtlMs = 300000, maxCacheEntries = 30 } = {}) {
-  const config = readConfig(env);
+const workPage = new URL('../docs/preview/index.html', import.meta.url);
+
+export function createGateway({ env = process.env, constrainOutput = false, timeoutMs = 120000, cacheTtlMs = 300000, maxCacheEntries = 30 } = {}) {
+  const config = { ...readConfig(env), constrainOutput };
   const activeDocuments = new Map(), requests = new Map();
   const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object'
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])])) : value;
@@ -45,9 +48,18 @@ export function createGateway({ env = process.env, timeoutMs = 120000, cacheTtlM
   }
   const server = createServer(async (req, res) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (req.method === 'GET' && pathname === '/') {
+      try {
+        const html = await readFile(workPage);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(html);
+      } catch {
+        return json(res, 404, { code: 'PAGE_NOT_FOUND', message: '网页入口文件未随网关提供' });
+      }
+    }
     if (req.method === 'GET' && pathname === '/api/health') {
       return json(res, 200, { configured: config.configured, model: config.model,
-        message: config.configured ? 'AI 网关已配置（尚未验证供应商连接）' : '请在服务端配置 LLM_BASE_URL、LLM_MODEL、LLM_API_KEY' });
+        message: config.configured ? 'AI 网关已配置（尚未验证模型连接）' : '请在服务端配置模型地址与名称，远程模型还需要配置密钥。' });
     }
     if (req.method !== 'POST' || pathname !== '/api/mindmaps/generate') return json(res, 404, { code: 'NOT_FOUND', message: '接口不存在' });
     let request;
@@ -78,18 +90,22 @@ export function createGateway({ env = process.env, timeoutMs = 120000, cacheTtlM
     requests.set(request.requestId, pending);
     const timeout = setTimeout(() => controller.abort(new Error('GENERATION_TIMEOUT')), timeoutMs);
     try {
-      send({ type: 'progress', message: request.mode === 'create' ? '正在生成导图…' : '正在整理选中分支的修改…' });
+      const branch = request.mode === 'revise' && request.scopeNodeId !== request.document.rootId;
+      send({ type: 'progress', message: branch ? '正在整理选中分支…' : '正在整理整张导图…' });
       const messages = buildMessages(request);
       const progress = message => send({ type: 'progress', message });
       let candidate;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const content = await callModel(config, messages, controller.signal, progress);
-        try { candidate = validateCandidate(parseOutput(content), request); break; }
+        const content = await callModel(config, messages, controller.signal, progress, request.mode);
+        try { candidate = assembleCandidate(parseOutput(content), request); break; }
         catch (error) {
-          if (attempt === 1) throw new GatewayError('INVALID_MODEL_OUTPUT', '模型结构未通过校验，修复一次后仍无效。原导图未改变。', 502);
+          const reason = error instanceof GatewayError ? error.message : '输出格式无法解析';
+          if (attempt === 1) {
+            throw new GatewayError('INVALID_MODEL_OUTPUT', `模型结构未通过校验（${reason}）。请重试，已有导图已保留。`, 502);
+          }
           send({ type: 'progress', message: '正在修复导图结构…' });
-          messages.push({ role: 'assistant', content });
-          messages.push({ role: 'user', content: `上次输出校验失败：${error.message}。按原协议修复，只返回完整 JSON {document,summary}，保留原文档身份、版本、范围外节点与稳定ID。` });
+          messages.push({ role: 'assistant', content: content.slice(0, 24000) });
+          messages.push({ role: 'user', content: `上次输出校验失败：${reason}。请按原输出协议重新执行当前指令。` });
         }
       }
       if (controller.signal.aborted) throw controller.signal.reason;
@@ -113,8 +129,18 @@ export function createGateway({ env = process.env, timeoutMs = 120000, cacheTtlM
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const port = Number(process.env.PORT || 8787), host = process.env.HOST || '127.0.0.1';
-  const server = createGateway();
-  server.listen(port, host, () => console.log(`FlowSpace AI gateway: http://${host}:${port} (configured: ${readConfig().configured})`));
+  const useLocalModel = process.argv[2] === '--local-model';
+  const localModel = process.argv[3]?.trim();
+  if (useLocalModel && !localModel) throw new Error('请在 npm run start:local -- 后填写本地模型名称');
+  const env = useLocalModel ? { LLM_BASE_URL: 'http://127.0.0.1:11524/v1', LLM_MODEL: localModel } : process.env;
+  const port = Number(useLocalModel ? process.argv[4] || 18797 : env.PORT || 8787);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('网关端口必须是 1 至 65535 之间的整数');
+  const host = env.HOST || '127.0.0.1';
+  const server = createGateway({ env, constrainOutput: useLocalModel });
+  server.on('error', error => {
+    console.error(`网关无法在 ${host}:${port} 启动（${error.code || error.message}）`);
+    process.exitCode = 1;
+  });
+  server.listen(port, host, () => console.log(`FlowSpace AI gateway: http://${host}:${port} (configured: ${readConfig(env).configured})`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));
 }
