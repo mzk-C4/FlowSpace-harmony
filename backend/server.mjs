@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { GatewayError, validateRequest, validateCandidate } from './validation.mjs';
+import { GatewayError, validateRequest, validateCandidate, restorePlacement } from './validation.mjs';
 import { readConfig, buildMessages, callModel, parseOutput } from './llm.mjs';
 
 export function createGateway({ env = process.env, timeoutMs = 120000, cacheTtlMs = 300000, maxCacheEntries = 30 } = {}) {
@@ -84,7 +84,7 @@ export function createGateway({ env = process.env, timeoutMs = 120000, cacheTtlM
       let candidate;
       for (let attempt = 0; attempt < 2; attempt++) {
         const content = await callModel(config, messages, controller.signal, progress);
-        try { candidate = validateCandidate(parseOutput(content), request); break; }
+        try { candidate = restorePlacement(validateCandidate(parseOutput(content), request), request.document); break; }
         catch (error) {
           if (attempt === 1) throw new GatewayError('INVALID_MODEL_OUTPUT', '模型结构未通过校验，修复一次后仍无效。原导图未改变。', 502);
           send({ type: 'progress', message: '正在修复导图结构…' });

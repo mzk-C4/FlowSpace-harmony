@@ -396,11 +396,11 @@ test('keyboard shortcuts run actual actions while preserving text editing and IM
 test('theme selection, system dark changes and reduced motion update rendering and saved preferences', () => {
   const app = runtime({ osDark: true });
   assert.equal(app.theme(), 'dark');
-  assert.match(app.get('#map-svg').innerHTML, /fill="#B1AEFF"/);
+  assert.match(app.get('#map-svg').innerHTML, /class="graph-node/);
   app.run("settings.themeMode='light';applyTheme()");
   assert.equal(app.theme(), 'light');
   app.run("page='diy';applyTheme()");
-  assert.match(app.get('#map-svg').innerHTML, /fill="#5354C7"/);
+  assert.match(app.get('#map-svg').innerHTML, /class="graph-node/);
   app.run("settings.themeMode='system';applyTheme()");
   app.setOSDark(false);
   assert.equal(app.theme(), 'light');
@@ -460,4 +460,403 @@ test('library details show verification date, separate code license and title-on
   assert.equal(app.run('page'), 'home');
   assert.match(app.get('#prompt').value, /动手学深度学习/);
   assert.match(app.get('#prompt').value, /没有读取原站全文/);
+});
+
+test('free placement fields are optional, validated and never required by legacy documents', () => {
+  const app = runtime();
+  assert.equal(app.run('validate(current)'), true);
+  assert.equal(app.run("(()=>{const d=clone(current);d.placement='free';d.positions={};d.nodes.forEach((n,i)=>d.positions[n.id]={x:i*10,y:i*20});return validate(d)})()"), true);
+  for (const code of [
+    "d.placement='manual'",
+    "d.placement='free';d.positions={ghost:{x:1,y:2}}",
+    "d.placement='free';d.positions={};d.positions[d.rootId]={x:'1',y:2}",
+    "d.placement='free';d.positions={};d.positions[d.rootId]={x:100001,y:0}",
+    "d.placement='free';d.positions=[]"
+  ]) {
+    assert.throws(() => app.run(`(()=>{const d=clone(current);${code};return validate(d)})()`), /位置|布局/);
+  }
+});
+
+test('free coordinates drive the visible scene and missing nodes fall back to auto layout', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const ids = JSON.parse(app.run('JSON.stringify(current.nodes.map(n=>n.id))'));
+  app.run("current.placement='free';current.positions={};current.nodes.forEach((n,i)=>current.positions[n.id]={x:i*300+5,y:i*200+7})");
+  const coords = JSON.parse(app.run('JSON.stringify(sceneCoords(current,false).map(p=>[p.node.id,p.x,p.y]))'));
+  assert.equal(coords.length, ids.length);
+  for (const [id, x, y] of coords) {
+    const index = ids.indexOf(id);
+    assert.equal(x, index * 300 + 5);
+    assert.equal(y, index * 200 + 7);
+  }
+  app.run("delete current.positions[current.nodes[2].id]");
+  const fallback = JSON.parse(app.run('JSON.stringify(sceneCoords(current,false).map(p=>[p.node.id,p.x,p.y]))'));
+  const missing = fallback.find(([id]) => id === ids[2]);
+  assert.ok(missing, 'the node without coordinates must still be rendered');
+  assert.ok(Number.isFinite(missing[1]) && Number.isFinite(missing[2]));
+});
+
+test('free placement snapshots every node, including collapsed descendants', () => {
+  const app = runtime();
+  app.run('openExample();current.nodes.find(n=>n.id===current.rootId).collapsed=true');
+  assert.equal(JSON.parse(app.run('JSON.stringify(sceneCoords(current,true))')).length, 10);
+  assert.equal(JSON.parse(app.run('JSON.stringify(sceneCoords(current,false))')).length, 1);
+  const positions = JSON.parse(app.run('JSON.stringify(freePositions(current))'));
+  assert.equal(Object.keys(positions).length, 10);
+  for (const value of Object.values(positions)) {
+    assert.ok(Number.isFinite(value.x) && Number.isFinite(value.y));
+  }
+});
+
+test('dragging a branch moves its subtree rigidly and commits one undoable revision', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const before = JSON.parse(app.run('JSON.stringify(Object.fromEntries(sceneCoords(current,false).map(p=>[p.node.id,{x:p.x,y:p.y}])))'));
+  const revision = app.run('current.revision');
+  const start = before[branch.id];
+  app.run(`beginNodeDrag('${branch.id}', ${start.x}, ${start.y})`);
+  app.run(`moveNodeDrag(${start.x + 80}, ${start.y + 40})`);
+  app.run('endNodeDrag(false)');
+  assert.equal(app.run('current.placement'), 'free');
+  assert.equal(app.run('selected'), branch.id);
+  assert.equal(app.run('current.revision'), revision + 1);
+  const after = JSON.parse(app.run('JSON.stringify(current.positions)'));
+  const subtree = JSON.parse(app.run(`JSON.stringify([...subtreeIds(current,'${branch.id}')])`));
+  for (const id of subtree) {
+    assert.ok(after[id], `missing position for ${id}`);
+    assert.equal(after[id].x, before[id].x + 80);
+    assert.equal(after[id].y, before[id].y + 40);
+  }
+  app.run('undo()');
+  assert.equal(app.run('Object.prototype.hasOwnProperty.call(current,"positions")'), false);
+  assert.equal(app.run('Object.prototype.hasOwnProperty.call(current,"placement")'), false);
+});
+
+test('releasing a 2D drag stops immediately without inertia', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const before = JSON.parse(app.run(`JSON.stringify(sceneCoords(current,false).find(p=>p.node.id==='${branch.id}'))`));
+  app.run(`beginNodeDrag('${branch.id}', ${before.x}, ${before.y});moveNodeDrag(${before.x + 60}, ${before.y + 30});endNodeDrag()`);
+  const after = JSON.parse(app.run(`JSON.stringify(current.positions['${branch.id}'])`));
+  assert.ok(Math.abs(after.x - (before.x + 60)) <= 2, `x drifted from ${before.x + 60} to ${after.x}`);
+  assert.ok(Math.abs(after.y - (before.y + 30)) <= 2, `y drifted from ${before.y + 30} to ${after.y}`);
+});
+
+test('3D dragging follows the pointer one-to-one through the inverse projection', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const item = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  app.run(`beginNodeDrag3D('${branch.id}', ${item.x}, ${item.y});moveNodeDragScreen(60, 30)`);
+  const moved = JSON.parse(app.run(`(() => { const state=nodeDrag, item=state.items.find(i=>i.id==='${branch.id}'); return JSON.stringify(projectNode3D({node:current.nodes.find(n=>n.id==='${branch.id}'),x:item.x,y:item.y,depth:item.depth}, state.projection)); })()`));
+  assert.ok(Math.abs(moved.x - item.x - 60) <= 1, `projected x moved ${moved.x - item.x}, expected 60`);
+  assert.ok(Math.abs(moved.y - item.y - 30) <= 1, `projected y moved ${moved.y - item.y}, expected 30`);
+});
+
+test('3D releasing a drag keeps the node where it was dropped, including the root', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const rootId = app.run('current.rootId');
+  const root = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${rootId}'))`));
+  app.run(`beginNodeDrag3D('${rootId}', ${root.x}, ${root.y});moveNodeDragScreen(100, 50);endNodeDrag(false)`);
+  const droppedRoot = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${rootId}'))`));
+  assert.ok(Math.abs(droppedRoot.x - (root.x + 100)) <= 1.5, `root snapped from ${root.x + 100} to ${droppedRoot.x}`);
+  assert.ok(Math.abs(droppedRoot.y - (root.y + 50)) <= 1.5, `root snapped from ${root.y + 50} to ${droppedRoot.y}`);
+
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const item = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  app.run(`beginNodeDrag3D('${branch.id}', ${item.x}, ${item.y});moveNodeDragScreen(200, 100);endNodeDrag(false)`);
+  const droppedBranch = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  assert.ok(Math.abs(droppedBranch.x - (item.x + 200)) <= 1.5, `branch snapped from ${item.x + 200} to ${droppedBranch.x}`);
+  assert.ok(Math.abs(droppedBranch.y - (item.y + 100)) <= 1.5, `branch snapped from ${item.y + 100} to ${droppedBranch.y}`);
+});
+
+test('3D rendering keeps the dragged node under the pointer during a large drag', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const item = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  app.run(`beginNodeDrag3D('${branch.id}', ${item.x}, ${item.y});moveNodeDragScreen(300, 150)`);
+  const rendered = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  assert.ok(Math.abs(rendered.x - (item.x + 300)) <= 1.5, `rendered x ${rendered.x}, expected ${item.x + 300}`);
+  assert.ok(Math.abs(rendered.y - (item.y + 150)) <= 1.5, `rendered y ${rendered.y}, expected ${item.y + 150}`);
+});
+
+test('cancelling a drag restores coordinates without writing a revision', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const before = JSON.parse(app.run('JSON.stringify(Object.fromEntries(sceneCoords(current,false).map(p=>[p.node.id,{x:p.x,y:p.y}])))'));
+  const revision = app.run('current.revision');
+  app.run(`beginNodeDrag('${branch.id}', ${before[branch.id].x}, ${before[branch.id].y})`);
+  app.run(`moveNodeDrag(${before[branch.id].x + 120}, ${before[branch.id].y + 60})`);
+  app.run('cancelNodeDrag()');
+  assert.equal(app.run('current.revision'), revision);
+  assert.equal(app.run('Object.prototype.hasOwnProperty.call(current,"positions")'), false);
+  const after = JSON.parse(app.run('JSON.stringify(Object.fromEntries(sceneCoords(current,false).map(p=>[p.node.id,{x:p.x,y:p.y}])))'));
+  assert.deepEqual(after, before);
+});
+
+test('collision resolution separates overlapping nodes with the minimum gap and scales to 500 nodes', () => {
+  const app = runtime();
+  const items = JSON.parse(app.run("(()=>{const items=[{id:'a',x:0,y:0,w:150,h:44},{id:'b',x:20,y:10,w:150,h:44},{id:'c',x:400,y:300,w:150,h:44}];resolveCollisions(items,new Set(),8,12);return JSON.stringify(items)})()"));
+  const separated = (p, q) => (p.w + q.w) / 2 + 12 - Math.abs((p.x + p.w / 2) - (q.x + q.w / 2)) <= 0.5 ||
+    (p.h + q.h) / 2 + 12 - Math.abs((p.y + p.h / 2) - (q.y + q.h / 2)) <= 0.5;
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      assert.ok(separated(items[i], items[j]), `${items[i].id}/${items[j].id} still overlaps`);
+    }
+  }
+  const started = Date.now();
+  const overlaps = app.run("(()=>{const items=[];for(let i=0;i<500;i++)items.push({id:'n'+String(i).padStart(3,'0'),x:(i%25)*220,y:Math.floor(i/25)*80,w:150,h:44});items[0].x=items[1].x+10;items[0].y=items[1].y+5;for(let frame=0;frame<10;frame++)resolveCollisions(items,new Set(),4,12);let bad=0;for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){const p=items[i],q=items[j];if((p.w+q.w)/2+12-Math.abs((p.x+p.w/2)-(q.x+q.w/2))>0.5&&(p.h+q.h)/2+12-Math.abs((p.y+p.h/2)-(q.y+q.h/2))>0.5)bad++}return bad})()");
+  assert.equal(overlaps, 0);
+  assert.ok(Date.now() - started < 3000, 'collision resolution must stay usable at 500 nodes');
+});
+
+test('released drag settles within the frame budget and keeps coordinates finite', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const start = JSON.parse(app.run(`JSON.stringify(sceneCoords(current,false).find(p=>p.node.id==='${branch.id}'))`)).x;
+  app.run(`beginNodeDrag('${branch.id}', ${start}, 0)`);
+  app.run(`moveNodeDrag(${start + 400}, 200)`);
+  app.run('endNodeDrag(false)');
+  assert.ok(app.run('lastSettle.frames') <= 40);
+  assert.equal(app.run('Object.values(current.positions).every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))'), true);
+  assert.equal(app.run('Object.values(current.positions).every(p=>Math.abs(p.x)<=100000&&Math.abs(p.y)<=100000)'), true);
+});
+
+test('long-press menu exposes add, edit, reparent, delete and organize with root restrictions', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const rootId = app.run('current.rootId');
+  const childId = app.run("current.nodes.find(n=>n.parentId===current.rootId).id");
+  app.run(`openNodeMenu('${rootId}')`);
+  let body = app.get('#dialog-content').innerHTML;
+  assert.match(body, /添加子节点/);
+  assert.match(body, /编辑/);
+  assert.match(body, /整理布局/);
+  assert.doesNotMatch(body, /删除分支/);
+  assert.doesNotMatch(body, /改父级/);
+  app.run(`openNodeMenu('${childId}')`);
+  body = app.get('#dialog-content').innerHTML;
+  assert.match(body, /添加同级节点/);
+  assert.match(body, /改父级/);
+  assert.match(body, /删除分支/);
+});
+
+test('adding a node in free mode places it beside its parent; reparenting keeps coordinates', () => {
+  const app = runtime();
+  app.run('openExample()');
+  app.run("applyEdit(()=>{current.placement='free';current.positions=freePositions(current)})");
+  const rootId = app.run('current.rootId');
+  const childId = app.run("current.nodes.find(n=>n.parentId===current.rootId).id");
+  const parentPosition = JSON.parse(app.run(`JSON.stringify(current.positions['${rootId}'])`));
+  app.run(`selected='${rootId}';nodeDialog('addChild')`);
+  app.get('#node-text').value = '自由模式新节点';
+  app.get('#node-form').onsubmit({ preventDefault() {} });
+  const added = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.text==='自由模式新节点'))"));
+  const addedPosition = JSON.parse(app.run(`JSON.stringify(current.positions['${added.id}'])`));
+  assert.ok(addedPosition.x > parentPosition.x);
+  assert.ok(Number.isFinite(addedPosition.y));
+  const before = JSON.parse(app.run(`JSON.stringify(current.positions['${childId}'])`));
+  app.run(`moveNodeTo('${childId}','${added.id}')`);
+  assert.equal(app.run(`current.nodes.find(n=>n.id==='${childId}').parentId`), added.id);
+  assert.deepEqual(JSON.parse(app.run(`JSON.stringify(current.positions['${childId}'])`)), before);
+});
+
+test('3D centered layout keeps the root at the orbit center and spreads children to both sides', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const projected = JSON.parse(app.run('JSON.stringify(projectedItems3D().map(i=>({id:i.node.id,parentId:i.node.parentId,x:i.x,y:i.y,z:i.z})))'));
+  assert.equal(projected.length, 10);
+  const rootId = app.run('current.rootId');
+  const root = projected.find(p => p.id === rootId);
+  assert.ok(Math.abs(root.x) <= 0.5 && Math.abs(root.y) <= 0.5, 'root must project to the orbit center');
+  const children = projected.filter(p => p.parentId === rootId).map(p => p.x);
+  assert.ok(children.some(x => x < 0) && children.some(x => x > 0), 'first-level branches must use both sides');
+  assert.ok(projected.some(p => p.z !== 0), 'depth must vary by level');
+});
+
+test('2D/3D toggle opens a readable 3D view and fit still shows the whole graph', () => {
+  const app = runtime();
+  app.run('openExample()');
+  assert.equal(app.run('viewMode'), '2d');
+  app.run('toggleViewMode()');
+  assert.equal(app.run('viewMode'), '3d');
+  assert.equal(app.get('#view-toggle').textContent, '3D');
+  assert.equal(app.get('#reset-view').hidden, false);
+  const view = JSON.parse(app.run('JSON.stringify({zoom,pan,bounds})'));
+  const fitZoom = Math.min(1.15, (390 - 25) / view.bounds.w, (330 - 65) / view.bounds.h);
+  assert.ok(view.zoom > fitZoom + 0.02, '3D starts closer than fit so circles and labels stay readable');
+  assert.ok(Math.abs(view.pan.x - 195) <= 2 && Math.abs(view.pan.y - 165) <= 2, 'the root stays centered');
+  app.run('fitMap()');
+  const fitted = JSON.parse(app.run('JSON.stringify({zoom,pan,bounds})'));
+  assert.ok(fitted.pan.x + fitted.bounds.minX * fitted.zoom >= -1);
+  assert.ok(fitted.pan.y + fitted.bounds.minY * fitted.zoom >= -1);
+  assert.ok(fitted.pan.x + (fitted.bounds.minX + fitted.bounds.w) * fitted.zoom <= 391);
+  assert.ok(fitted.pan.y + (fitted.bounds.minY + fitted.bounds.h) * fitted.zoom <= 331);
+  app.run('toggleViewMode()');
+  assert.equal(app.run('viewMode'), '2d');
+  assert.equal(app.get('#view-toggle').textContent, '2D');
+  assert.equal(app.get('#reset-view').hidden, true);
+});
+
+test('3D graph uses colored circles, relation labels and a faded depth layer', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const svg = app.get('#map-svg').innerHTML;
+  assert.match(svg, /class="graph-node/);
+  assert.match(svg, /class="graph-link/);
+  assert.match(svg, /包含/, 'tree edges carry a default relation label');
+  assert.ok((svg.match(/class="ghost-node/g) || []).length >= 10, 'a faded duplicate layer supplies depth');
+  const colors = JSON.parse(app.run('JSON.stringify([...new Set(current.nodes.filter(n=>n.parentId===current.rootId).map(n=>nodeColor(current,n.id)))])'));
+  assert.ok(colors.length >= 2, 'first-level branches use different colors');
+});
+
+test('optional relation links are validated and drawn as labeled cross-links', () => {
+  const app = runtime();
+  assert.equal(app.run('validate(current)'), true);
+  assert.equal(app.run("(()=>{const d=clone(current);d.links=[{from:d.rootId,to:d.nodes[1].id,label:'包含'}];return validate(d)})()"), true);
+  for (const code of [
+    "d.links=[{from:d.rootId,to:'missing',label:'关联'}]",
+    "d.links=[{from:d.rootId,to:d.rootId,label:'关联'}]",
+    "d.links=[{from:d.rootId,to:d.nodes[1].id,label:'x'.repeat(41)}]",
+    "d.links={}"
+  ]) {
+    assert.throws(() => app.run(`(()=>{const d=clone(current);${code};return validate(d)})()`), /关系|links|链接/);
+  }
+  app.run('openExample()');
+  const children = JSON.parse(app.run('JSON.stringify(current.nodes.filter(n=>n.parentId===current.rootId).map(n=>n.id))'));
+  app.run(`current.links=[{from:'${children[0]}',to:'${children[1]}',label:'跨分支关系'}]`);
+  app.run('viewMode="3d";drawMap()');
+  const svg = app.get('#map-svg').innerHTML;
+  assert.match(svg, /跨分支关系/);
+  assert.match(svg, /graph-link extra/);
+});
+
+test('3D projection renders every node, hits the top card and stays within fit bounds', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const items = JSON.parse(app.run('JSON.stringify(projectedItems3D().map(i=>({id:i.node.id,x:i.x,y:i.y,z:i.z,w:i.w,h:i.h,scale:i.scale})))'));
+  assert.equal(items.length, 10);
+  for (const item of items) assert.ok([item.x, item.y, item.z, item.w, item.h, item.scale].every(Number.isFinite));
+  assert.ok(items.some(item => item.scale !== 1), 'perspective must produce depth-dependent scale');
+  const root = items.find(item => item.id === app.run('current.rootId'));
+  assert.equal(app.run(`hitTest3D(${root.x}, ${root.y})`), root.id);
+  app.run('fitMap()');
+  const fitted = JSON.parse(app.run('JSON.stringify({zoom,pan,bounds})'));
+  assert.ok(fitted.pan.x + fitted.bounds.minX * fitted.zoom >= -1);
+  assert.ok(fitted.pan.y + fitted.bounds.minY * fitted.zoom >= -1);
+  assert.ok(fitted.pan.x + (fitted.bounds.minX + fitted.bounds.w) * fitted.zoom <= 391);
+  assert.ok(fitted.pan.y + (fitted.bounds.minY + fitted.bounds.h) * fitted.zoom <= 331);
+});
+
+test('the editor can add a demo set of cross-links and undo it', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const revision = app.run('current.revision');
+  app.run('addRelationDemo()');
+  assert.equal(app.run('Array.isArray(current.links)&&current.links.length>=2'), true);
+  assert.equal(app.run('viewMode'), '3d');
+  assert.equal(app.run('current.revision'), revision + 1);
+  app.run('undo()');
+  assert.equal(app.run('Object.prototype.hasOwnProperty.call(current,"links")'), false);
+});
+
+test('3D dragging lets descendants follow with a spring and settle back to their offsets', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const child = JSON.parse(app.run(`JSON.stringify(current.nodes.find(n=>n.parentId==='${branch.id}'))`));
+  const start = JSON.parse(app.run(`JSON.stringify(Object.fromEntries(centeredCoords(current,false).map(p=>[p.node.id,{x:p.x,y:p.y}])))`));
+  const item = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  app.run(`beginNodeDrag3D('${branch.id}', ${item.x}, ${item.y})`);
+  app.run('moveNodeDragScreen(70,35)');
+  const during = JSON.parse(app.run('JSON.stringify(nodeDrag.items.map(i=>({id:i.id,x:i.x,y:i.y})))'));
+  const parentDelta = Math.hypot(during.find(i => i.id === branch.id).x - start[branch.id].x, during.find(i => i.id === branch.id).y - start[branch.id].y);
+  const childDelta = Math.hypot(during.find(i => i.id === child.id).x - start[child.id].x, during.find(i => i.id === child.id).y - start[child.id].y);
+  assert.ok(childDelta < parentDelta * 0.8, 'the descendant must lag behind the dragged node');
+  assert.ok(childDelta > parentDelta * 0.5, 'the descendant must stay close enough to feel responsive');
+  app.run('endNodeDrag(false)');
+  const positions = JSON.parse(app.run('JSON.stringify(current.positions)'));
+  const beforeOffset = { x: start[child.id].x - start[branch.id].x, y: start[child.id].y - start[branch.id].y };
+  const afterOffset = { x: positions[child.id].x - positions[branch.id].x, y: positions[child.id].y - positions[branch.id].y };
+  assert.ok(Math.abs(afterOffset.x - beforeOffset.x) <= 2 && Math.abs(afterOffset.y - beforeOffset.y) <= 2, `the spring must restore the original relative offset ${JSON.stringify({ beforeOffset, afterOffset })}`);
+});
+
+test('3D trackball rotation changes the orientation and reset restores the default', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const before = app.run('JSON.stringify(rotation)');
+  app.run('beginRotate3D();updateRotate3D(80,40)');
+  assert.notEqual(app.run('JSON.stringify(rotation)'), before);
+  app.run('resetView3D()');
+  assert.equal(app.run('JSON.stringify(rotation)'), before);
+});
+
+test('dragging in 3D converts screen movement into plane coordinates and commits free positions', () => {
+  const app = runtime();
+  app.run('openExample();viewMode="3d";drawMap()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const item = JSON.parse(app.run(`JSON.stringify(projectedItems3D().find(i=>i.node.id==='${branch.id}'))`));
+  const start = JSON.parse(app.run(`JSON.stringify(centeredCoords(current,false).find(p=>p.node.id==='${branch.id}'))`));
+  const revision = app.run('current.revision');
+  app.run(`beginNodeDrag3D('${branch.id}', ${item.x}, ${item.y})`);
+  app.run('moveNodeDragScreen(70,35)');
+  app.run('endNodeDrag(false)');
+  assert.equal(app.run('current.placement'), 'free');
+  assert.equal(app.run('current.revision'), revision + 1);
+  const moved = JSON.parse(app.run(`JSON.stringify(current.positions['${branch.id}'])`));
+  assert.ok(Number.isFinite(moved.x) && Number.isFinite(moved.y));
+  assert.notEqual(moved.x, start.x);
+  assert.notEqual(moved.y, start.y);
+});
+
+test('reduced motion commits the drag without running glide frames', () => {
+  const app = runtime();
+  app.run('openExample();settings.reduceMotion=true');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const start = JSON.parse(app.run(`JSON.stringify(sceneCoords(current,false).find(p=>p.node.id==='${branch.id}'))`)).x;
+  app.run(`beginNodeDrag('${branch.id}', ${start}, 0);moveNodeDrag(${start + 130}, 40);endNodeDrag()`);
+  assert.equal(app.run('lastSettle.frames'), 0);
+  assert.equal(app.run('current.placement'), 'free');
+});
+
+test('organize clears free positions and one undo restores them', () => {
+  const app = runtime();
+  app.run('openExample()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const start = JSON.parse(app.run(`JSON.stringify(sceneCoords(current,false).find(p=>p.node.id==='${branch.id}'))`)).x;
+  app.run(`beginNodeDrag('${branch.id}', ${start}, 0);moveNodeDrag(${start + 50}, 30);endNodeDrag(false)`);
+  const saved = JSON.parse(app.run('JSON.stringify(current.positions)'));
+  app.run('organizeLayout()');
+  assert.equal(app.run('Object.prototype.hasOwnProperty.call(current,"positions")'), false);
+  app.run('undo()');
+  assert.deepEqual(JSON.parse(app.run('JSON.stringify(current.positions)')), saved);
+});
+
+test('JSON backups carry free positions through export and import, while legacy backups still open', async () => {
+  const app = runtime();
+  app.run('openExample()');
+  const branch = JSON.parse(app.run("JSON.stringify(current.nodes.find(n=>n.parentId===current.rootId))"));
+  const start = JSON.parse(app.run(`JSON.stringify(sceneCoords(current,false).find(p=>p.node.id==='${branch.id}'))`)).x;
+  app.run(`beginNodeDrag('${branch.id}', ${start}, 0);moveNodeDrag(${start + 70}, 30);endNodeDrag(false)`);
+  const saved = JSON.parse(app.run('JSON.stringify(current.positions)'));
+  await app.run("exportDoc('json')");
+  const backup = JSON.parse(await app.downloads.at(-1).blob.text());
+  assert.deepEqual(backup.document.positions, saved);
+  assert.equal(backup.document.placement, 'free');
+  const before = app.run('docs.length');
+  await app.get('#import-file').onchange({ target: { value: 'free.json', files: [{ size: 500, text: async () => JSON.stringify(backup) }] } });
+  assert.equal(app.run('docs.length'), before + 1);
+  assert.deepEqual(JSON.parse(app.run('JSON.stringify(current.positions)')), saved);
+  const legacy = JSON.parse(JSON.stringify(backup));
+  delete legacy.document.positions;
+  delete legacy.document.placement;
+  await app.get('#import-file').onchange({ target: { value: 'legacy.json', files: [{ size: 500, text: async () => JSON.stringify(legacy) }] } });
+  assert.equal(app.run('Object.prototype.hasOwnProperty.call(current,"positions")'), false);
+  assert.equal(app.run('validate(current)'), true);
 });

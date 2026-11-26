@@ -60,6 +60,73 @@ const post = (url, payload, options = {}) => fetch(`${url}/api/mindmaps/generate
 });
 const events = text => text.trim().split('\n\n').map(line => JSON.parse(line.slice(6)));
 
+test('optional free placement is validated, accepted and kept across model round trips', async t => {
+  const doc = document();
+  doc.placement = 'free';
+  doc.positions = { root: { x: 10, y: 20 }, branch: { x: 210, y: 20 } };
+  assert.doesNotThrow(() => validateDocument(clone(doc)));
+  for (const mutate of [
+    d => d.placement = 'manual',
+    d => d.positions = [],
+    d => d.positions.ghost = { x: 1, y: 2 },
+    d => d.positions.root = { x: '10', y: 20 },
+    d => d.positions.root = { x: 100001, y: 20 },
+    d => d.positions = { root: { x: 1, y: 2 }, branch: { x: 2, y: 3 }, outside: { x: 3, y: 4 }, root2: { x: 4, y: 5 } }
+  ]) { const bad = clone(doc); mutate(bad); assert.throws(() => validateDocument(bad), /位置|placement/); }
+
+  let sentDocument;
+  const fixture = await setup(t, async (_req, res, payload) => {
+    sentDocument = JSON.parse(payload.messages[1].content).document;
+    const output = result({ ...request(), document: doc });
+    delete output.document.positions;
+    delete output.document.placement;
+    return emit(res, output);
+  });
+  const payload = { ...request(), document: doc, documentId: doc.documentId, baseRevision: doc.revision };
+  const data = events(await (await post(fixture.url, payload)).text());
+  assert.equal(sentDocument.positions, undefined, 'the model must not receive or rewrite coordinates');
+  assert.equal(sentDocument.placement, undefined);
+  const candidate = data.find(event => event.type === 'candidate').candidate;
+  assert.deepEqual(candidate.document.positions, doc.positions);
+  assert.equal(candidate.document.placement, 'free');
+});
+
+test('optional relation links are validated, hidden from the model and restored', async t => {
+  const doc = document();
+  doc.links = [{ from: 'root', to: 'branch', label: '包含' }, { from: 'branch', to: 'outside', label: '关联' }];
+  assert.doesNotThrow(() => validateDocument(clone(doc)));
+  for (const mutate of [
+    d => d.links = {},
+    d => d.links = [{ from: 'root', to: 'missing', label: '关联' }],
+    d => d.links = [{ from: 'root', to: 'root', label: '自环' }],
+    d => d.links = [{ from: 'root', to: 'branch', label: 'x'.repeat(41) }]
+  ]) { const bad = clone(doc); mutate(bad); assert.throws(() => validateDocument(bad), /关系|links|链接/); }
+
+  let sentDocument;
+  const fixture = await setup(t, async (_req, res, payload) => {
+    sentDocument = JSON.parse(payload.messages[1].content).document;
+    const output = result({ ...request(), document: doc });
+    delete output.document.links;
+    return emit(res, output);
+  });
+  const payload = { ...request(), document: doc, documentId: doc.documentId, baseRevision: doc.revision };
+  const data = events(await (await post(fixture.url, payload)).text());
+  assert.equal(sentDocument.links, undefined, 'the model must not receive presentation links');
+  const candidate = data.find(event => event.type === 'candidate').candidate;
+  assert.deepEqual(candidate.document.links, doc.links);
+});
+
+test('invalid placement in a request is rejected before the model is called', async t => {
+  let calls = 0;
+  const fixture = await setup(t, async (_req, res) => { calls++; return emit(res, result()); });
+  const doc = document();
+  doc.placement = 'free';
+  doc.positions = { ghost: { x: 1, y: 2 } };
+  const response = await post(fixture.url, { ...request(), document: doc, documentId: doc.documentId, baseRevision: doc.revision });
+  assert.equal(response.status, 400);
+  assert.equal(calls, 0);
+});
+
 test('configuration supports v1 root and complete endpoint; rejects unsafe URLs', () => {
   const env = { LLM_BASE_URL: 'https://example.com/v1/', LLM_MODEL: 'model', LLM_API_KEY: 'secret' };
   assert.equal(readConfig(env).endpoint, 'https://example.com/v1/chat/completions');

@@ -21,6 +21,8 @@
 
 domain/DocumentSession.ets 导出 DocumentSession，constructor(doc:MindMapDocument)；document:MindMapDocument；canUndo():boolean；canRedo():boolean；addNode(parentId,text):string；addSibling(nodeId,text):string；editNode(nodeId,text,note):void；removeNode(nodeId):void；moveNode(nodeId,parentId):void；toggleCollapsed(nodeId):void；setLayout(layout):void；rename(title):void；applyCandidate(candidate:GenerationCandidate):void；undo():void；redo():void。每次图修改（包括撤销）revision单调加一；校验根/循环/重复ID/500节点/8层；失败抛Error且原图不变；AI仅当前revision可应用，一次撤销单元。另导出 validateDocument(doc):void。
 
+文档可选字段（网页预览自由摆放与 3D 关系图）：`placement?: 'auto' | 'free'`、`positions?: Record<nodeId,{x:number,y:number}>`、`links?: {from,to,label}[]`。坐标范围 ±100000，键必须是现有节点；`links` 的 from/to 必须是现有节点、不能自环、label 最多 40 字，最多 500 条，允许跨分支/多父关系。旧文档缺少字段时按 `auto` 处理。原生当前不渲染自由坐标和关系链接但必须原样保留；后端放行这些字段，发给模型前剥离、候选返回后按仍存在的节点恢复，不在本轮生成坐标或关系。
+
 storage/DocumentRepository.ets 导出单例 documentRepository：initialize(context:common.UIAbilityContext):Promise<void>; list(query:string=''):Promise<DocumentSummary[]>; get(id:string):Promise<MindMapDocument|null>; save(doc):Promise<void>; delete(id):Promise<void>; loadSettings():Promise<AppSettings>; saveSettings(settings):Promise<void>。新 mindmaps.db，RelationalStore，串行保存避免逆序覆盖；保存时文档和恢复快照事务一致。存储失败抛错。导入非法JSON不可保存。
 
 storage/ExportService.ets 导出单例 exportService：exportDocument(context,doc,format:'png'|'markdown'|'json' 或 string):Promise<void>; importDocument(context):Promise<MindMapDocument>。系统DocumentViewPicker选择位置；JSON导入创建新documentId；PNG全图离屏绘制最长边4096，不能只截图可视区域。另提供 markdown(doc):string、serialize(doc):string、parseBackup(text):MindMapDocument 便于测试。

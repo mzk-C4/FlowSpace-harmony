@@ -10,7 +10,7 @@ const string = (value, name, max, allowEmpty = false) => {
 };
 export function validateDocument(doc, maxNodes = 500) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) fail('缺少导图文档');
-  keysOnly(doc, ['schemaVersion', 'documentId', 'title', 'revision', 'rootId', 'nodes', 'layout', 'sourceText', 'messages', 'createdAt', 'updatedAt'], 'document');
+  keysOnly(doc, ['schemaVersion', 'documentId', 'title', 'revision', 'rootId', 'nodes', 'layout', 'sourceText', 'messages', 'createdAt', 'updatedAt', 'placement', 'positions', 'links'], 'document');
   if (doc.schemaVersion !== 1) fail('不支持的文档版本');
   string(doc.documentId, 'documentId', 128); string(doc.rootId, 'rootId', 128);
   string(doc.title, 'title', 200);
@@ -33,6 +33,30 @@ export function validateDocument(doc, maxNodes = 500) {
     if (nodes.has(node.id)) fail('存在重复节点 ID');
     nodes.set(node.id, node);
   }
+  if (doc.placement !== undefined && !['auto', 'free'].includes(doc.placement)) fail('placement 仅支持 auto/free');
+  if (doc.positions !== undefined) {
+    if (!doc.positions || typeof doc.positions !== 'object' || Array.isArray(doc.positions)) fail('位置数据无效');
+    const entries = Object.entries(doc.positions);
+    if (entries.length > doc.nodes.length) fail('位置数据包含未知节点');
+    for (const [nodeId, position] of entries) {
+      if (!nodes.has(nodeId)) fail('位置数据包含未知节点');
+      if (!position || typeof position !== 'object' || Array.isArray(position)) fail('位置坐标无效');
+      keysOnly(position, ['x', 'y'], '位置');
+      if (!Number.isFinite(position.x) || !Number.isFinite(position.y) ||
+        Math.abs(position.x) > 100000 || Math.abs(position.y) > 100000) fail('位置坐标无效');
+    }
+  }
+  if (doc.links !== undefined) {
+    if (!Array.isArray(doc.links) || doc.links.length > 500) fail('关系链接格式无效');
+    for (const link of doc.links) {
+      if (!link || typeof link !== 'object' || Array.isArray(link)) fail('关系链接格式无效');
+      keysOnly(link, ['from', 'to', 'label'], '关系链接');
+      if (typeof link.from !== 'string' || !nodes.has(link.from) ||
+        typeof link.to !== 'string' || !nodes.has(link.to)) fail('关系链接引用了未知节点');
+      if (link.from === link.to) fail('关系链接不能自环');
+      if (typeof link.label !== 'string' || link.label.length > 40) fail('关系链接标签无效');
+    }
+  }
   const root = nodes.get(doc.rootId);
   if (!root || root.parentId !== '') fail('根节点缺失或根节点父 ID 非空');
   for (const node of nodes.values()) {
@@ -47,6 +71,23 @@ export function validateDocument(doc, maxNodes = 500) {
     if (!seen.has(doc.rootId)) fail('节点不属于唯一根节点');
   }
   return doc;
+}
+export function restorePlacement(candidate, base) {
+  const ids = new Set(candidate.document.nodes.map(node => node.id));
+  const positions = base?.positions
+    ? Object.fromEntries(Object.entries(base.positions).filter(([nodeId]) => ids.has(nodeId))) : {};
+  if (Object.keys(positions).length) {
+    candidate.document.positions = positions;
+    candidate.document.placement = 'free';
+  } else {
+    delete candidate.document.positions;
+    delete candidate.document.placement;
+  }
+  const links = base?.links
+    ? base.links.filter(link => ids.has(link.from) && ids.has(link.to)) : [];
+  if (links.length) candidate.document.links = links;
+  else delete candidate.document.links;
+  return candidate;
 }
 export function validateMessages(messages) {
   if (!Array.isArray(messages) || messages.length > 100) fail('对话消息格式错误或超过 100 条');
