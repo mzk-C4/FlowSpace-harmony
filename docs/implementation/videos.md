@@ -1,6 +1,7 @@
 # 首页工科学习视频核验
 
 核验日期：2026-11-03（Asia/Shanghai）。负责人：赵紫石首页模块。
+复验日期：2026-11-24（Asia/Shanghai）。首页第二轮用 `curl.exe -sS -L --max-time 45` 逐条重放八个入口，全部返回 HTTP 200；HTTP 200 只说明入口当前可达，不等于实体手机可播放。
 
 通过官方网页实际打开核对课程名称、主讲人和视频目录。只收录官方课程入口，不复制、缓存、转发视频文件，也不使用站点徽标或第三方课程封面。页面标题为便于中文学习者理解而自行概括，非官方中文译名。
 
@@ -24,6 +25,27 @@ MIT OCW 的[官方条款页](https://ocw.mit.edu/pages/privacy-and-terms-of-use/
 | video-mit-feedback / 控制 | [RES.6-010 Electronic Feedback Systems · Course Videos](https://ocw.mit.edu/courses/res-6-010-electronic-feedback-systems-spring-2013/video_galleries/course-videos/) | 官方说明为 James Roberge 于 1985 年讲授的经典反馈控制录像；目录含稳定性、根轨迹、频率响应与补偿。归档学期 Spring 2013 不代表拍摄时间 | 英语 | 同上 |
 
 检索中排除了 6.241J Dynamic Systems and Control（Spring 2011）：其官方目录主要为教材、讲义和作业，未用它冒充已核验的视频集合。
+
+## 2026-11-24 复验与首页登记字段
+
+八个入口逐条重放的结果（`curl.exe -sS -L -o NUL -w '%{http_code}'`）：
+
+| 数据 ID | HTTP | 官方机构 / 主讲 | 核验日期 |
+| --- | --- | --- | --- |
+| video-mit-1806 | 200 | MIT OpenCourseWare · 18.06 / Prof. Gilbert Strang | 2026-11-24 |
+| video-mit-1801 | 200 | MIT OpenCourseWare · 18.01SC / Prof. David Jerison | 2026-11-24 |
+| video-mit-1803 | 200 | MIT OpenCourseWare · 18.03SC / Prof. Arthur Mattuck（讲师团队另含 Haynes Miller、Jeremy Orloff、John Lewis） | 2026-11-24 |
+| video-mit-6006 | 200 | MIT OpenCourseWare · 6.006 / Prof. Erik Demaine、Prof. Srini Devadas | 2026-11-24 |
+| video-mit-6042 | 200 | MIT OpenCourseWare · 6.042J / Prof. Tom Leighton、Dr. Marten van Dijk | 2026-11-24 |
+| video-mit-6002 | 200 | MIT OpenCourseWare · 6.002 / Prof. Anant Agarwal | 2026-11-24 |
+| video-mit-signals | 200 | MIT OpenCourseWare · RES.6-007 / Prof. Alan V. Oppenheim | 2026-11-24 |
+| video-mit-feedback | 200 | MIT OpenCourseWare · RES.6-010 / Prof. James Roberge（1985 年授课录像，共 20 讲） | 2026-11-24 |
+
+18.03SC 与 RES.6-010 的主讲信息在 2026-11-24 重新打开官方课程页确认：18.03SC 课程页列出 Prof. Arthur Mattuck、Prof. Haynes Miller、Dr. Jeremy Orloff、Dr. John Lewis，讲课视频由 Arthur Mattuck 主讲；RES.6-010 页面署名为 James Roberge，并说明录像摄于 1985 年、共 20 讲。
+
+首页把这些字段登记在 `entry/src/main/ets/data/VideoCatalog.ets` 的 `VIDEO_VERIFICATION`（键为与共享 `LearningResource.id` 一致的 `videoId`），同文件的 `VIDEO_CATEGORIES` 固定“全部 + 5 个方向”的顺序，`findVideos(category)` 供筛选与计数共用。之所以与共享 `LearningResource` 分开保存，是因为 `docs/preview` 的深比较测试要求预览页 `videos` 与 `VIDEO_RESOURCES` 完全相等（先例为 `ResourceCatalog.ets` 的 `RESOURCE_VERIFICATION`）。
+
+详情面板把八门课程渲染为同一组信息行：提供机构、主讲、学科、语言、访问条件、使用条件、原始链接、核验日期，再附“适合”说明与官方入口按钮。若某个 `videoId` 未登记，界面显示“以官方课程页为准 / 未登记”，不退化成编造值。
 
 ## 使用边界
 

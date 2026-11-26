@@ -46,6 +46,7 @@ try {
         bundle name [com.mzk.flowspace]
         state #FOREGROUND
 '@
+  $record=$record.Replace("`r`n","`n")
   Assert-True (Test-FlowSpaceAbilityRecord $record) 'Official record identity rejected'; $passed++
   Assert-True (Test-FlowSpaceAbilityRecord ($record.Replace("`n","`r`n"))) 'CRLF record identity rejected'; $passed++
   $splitRecords=@'
