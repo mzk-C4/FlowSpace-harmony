@@ -393,6 +393,7 @@ struct Index {
                 generating: this.creating, generationProgress: this.progress, generationError: this.homeError,
                 canCancel: !this.changingDocument, onCancel: () => { this.cancelGeneration(); },
                 onConnectionSettings: () => { this.currentTab = 3; },
+                onDismissGenerationFeedback: () => { this.homeError = ''; },
                 onOpenExample: () => { this.importDocument(true); },
                 onGenerate: (text: string) => { this.generate(text, true); },
                 onOpenDocument: (id: string) => { this.openDocument(id); }, onNewMap: () => { this.newMap(); },
