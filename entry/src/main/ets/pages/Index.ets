@@ -1,3 +1,7 @@
+import { NodeLearningPage } from '../learning/NodeLearningPage';
+import { lessonClient, LessonRequest } from '../learning/LessonClient';
+import { VisualLesson } from '../learning/LessonScript';
+import { decodeStudyNote, StudyLink } from '../learning/NodeLearning';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { MindMapDocument, DocumentSummary, AppSettings, GenerationRequest, GenerationCandidate, ChatMessage,
   HealthStatus, EditorAction, LearningResource, createDocument, defaultSettings, cloneDocument, newId } from '../domain/MindMap';
@@ -14,6 +18,12 @@ import { ProfilePage } from '../ui/ProfilePage';
 @Entry
 @ComponentV2
 struct Index {
+  @Local learningNodeId: string = '';
+  @Local learningDocumentId: string = '';
+  @Local learningTitle: string = '';
+  @Local learningNote: string = '';
+  @Local learningPreviewId: string = '';
+  @Local learningCloseSignal: number = 0;
   @Local currentTab: number = 0;
   @Local document: MindMapDocument = createDocument();
   @Local documents: DocumentSummary[] = [];
@@ -357,6 +367,62 @@ struct Index {
     }
   }
 
+  private openLearning(nodeId: string = '', previewId: string = ''): void {
+    if (!this.ready || this.changingDocument || this.candidate !== null || this.busy) {
+      this.message = '请先完成或取消当前生成，再打开节点学习详情。'; return;
+    }
+    const node = this.document.nodes.find((item) => item.id === nodeId);
+    if (nodeId && !node) { this.message = '节点已不存在。'; return; }
+    this.learningNodeId = node ? node.id : '';
+    this.learningDocumentId = this.document.documentId;
+    this.learningTitle = node ? node.text : '知识动态讲解';
+    this.learningNote = node ? node.note : '';
+    this.learningPreviewId = previewId;
+    this.resourceOpenError = ''; this.failedResourceId = '';
+    this.pathStack.pushPath({ name: 'NodeLearning' });
+  }
+
+  private saveLearning(note: string, baseRevision: number): boolean {
+    if (!this.learningNodeId || this.document.documentId !== this.learningDocumentId ||
+      baseRevision !== this.document.revision || this.busy || this.candidate !== null) return false;
+    const node = this.document.nodes.find((item) => item.id === this.learningNodeId);
+    if (!node) return false;
+    try { decodeStudyNote(note); } catch (_) { return false; }
+    const applied: boolean = this.action({ kind: 'edit', nodeId: node.id, parentId: '', text: node.text, note: note });
+    if (applied) this.learningNote = note;
+    return applied;
+  }
+
+  private generateLesson(request: LessonRequest): Promise<VisualLesson> {
+    if (this.document.documentId !== request.documentId || request.nodeId !== this.learningNodeId ||
+      this.document.revision !== request.baseRevision || this.busy || this.candidate !== null) {
+      return Promise.reject(new Error('节点版本已变化，请返回确认后重试。'));
+    }
+    return lessonClient.generate(this.settings.backendUrl, request);
+  }
+
+  private openStudyLink(link: StudyLink): void {
+    this.openResource({ id: this.learningNodeId || 'lesson-preview', title: link.title, url: link.url,
+      category: '节点资料', description: '', source: '', license: '以来源页条款为准', language: '', kind: '节点链接' });
+  }
+
+  @Builder
+  learningDestination(name: string) {
+    if (name === 'NodeLearning') {
+      NavDestination() {
+        NodeLearningPage({ title: this.learningTitle, note: this.learningNote, documentId: this.learningDocumentId,
+          nodeId: this.learningNodeId, revision: this.document.revision, previewLessonId: this.learningPreviewId,
+          reduceMotion: this.settings.reduceMotion, closeSignal: this.learningCloseSignal, saveStatus: this.saveStatus,
+          externalError: this.resourceOpenError, editable: !this.busy && this.candidate === null,
+          onClose: () => { lessonClient.cancel(); this.pathStack.pop(); },
+          onSave: (note: string, revision: number) => this.saveLearning(note, revision),
+          onOpenLink: (link: StudyLink) => this.openStudyLink(link),
+          onGenerate: (request: LessonRequest) => this.generateLesson(request),
+          onCancelGeneration: () => { lessonClient.cancel(); } })
+      }.hideTitleBar(true).onBackPressed(() => { this.learningCloseSignal++; return true; })
+    }
+  }
+
   @Builder
   tabLabel(label: string, glyph: Resource, index: number) {
     Column({ space: 3 }) {
@@ -411,10 +477,11 @@ struct Index {
                 onSelect: (id: string) => { this.selectedNodeId = id; }, onAction: (action: EditorAction) => { return this.action(action); },
                 onGenerate: (text: string) => { this.generate(text); }, onCancel: () => { this.cancelGeneration(); },
                 onApplyCandidate: () => { this.applyCandidate(); }, onDiscardCandidate: () => { this.discardCandidate(); },
+                onOpenLearning: (id: string) => { this.openLearning(id); },
                 onExport: (format: string) => { this.exportDocument(format); } })
             }.tabBar(this.tabLabel('DIY 导图', $r('sys.symbol.rectangle_3_group'), 1))
             TabContent() {
-              LibraryPage({ externalOpenError: this.resourceOpenError, failedResourceId: this.failedResourceId,
+              LibraryPage({ onOpenLesson: (id: string) => { this.openLearning('', id); }, externalOpenError: this.resourceOpenError, failedResourceId: this.failedResourceId,
                 onOpenResource: (resource: LearningResource) => { this.openResource(resource); },
                 onUseTopic: (text: string) => {
                   if (!this.busy) { this.homeDraft = text; this.homeError = ''; this.currentTab = 0; }
@@ -433,6 +500,6 @@ struct Index {
             .backgroundColor($r('app.color.fs_bg')).onChange((index: number) => { this.currentTab = index; })
         }
       }.width('100%').height('100%').backgroundColor($r('app.color.fs_bg'))
-    }.mode(NavigationMode.Stack).hideTitleBar(true)
+    }.mode(NavigationMode.Stack).hideTitleBar(true).navDestination(this.learningDestination)
   }
 }

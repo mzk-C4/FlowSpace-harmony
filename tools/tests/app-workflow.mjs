@@ -10,6 +10,9 @@ const dataModule = text => 'data:text/javascript;base64,' + Buffer.from(stripTyp
 const mindMapModule = dataModule(source('domain/MindMap'));
 const sessionModule = dataModule(source('domain/DocumentSession').replace(/^import .*;\r?\n/, `import {cloneDocument,newId} from '${mindMapModule}';\n`));
 const builderModule = dataModule(source('domain/GenerationRequestBuilder').replace(/^import .*;\r?\n/, `import {cloneDocument,newId} from '${mindMapModule}';\n`));
+const studySchemaModule = dataModule(source('learning/LessonScript'));
+const studyNoteModule = dataModule(source('learning/NodeLearning').replace(/^import .*;\r?\n/gm, `import {validateLesson} from '${studySchemaModule}';\n`));
+const {encodeStudyNote,emptyStudy} = await import(studyNoteModule);
 const { createDocument, cloneDocument } = await import(mindMapModule);
 let sequence = 0;
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -60,9 +63,11 @@ async function appHarness({ seed, generate, imported, example } = {}) {
 import {createDocument,defaultSettings,cloneDocument,newId} from '${mindMapModule}';
 import {DocumentSession,validateDocument} from '${sessionModule}';
 import {buildGenerationRequest} from '${builderModule}';
+import {decodeStudyNote} from '${studyNoteModule}';
 const {repo:documentRepository,client:generationClient,exports:exportService}=globalThis.__workflowDependencies;
 const ConfigurationConstant={ColorMode:{COLOR_MODE_NOT_SET:0,COLOR_MODE_LIGHT:1,COLOR_MODE_DARK:2}};
-class NavPathStack {}
+class NavPathStack { paths=[]; pushPath(value){this.paths.push(value)} pop(){return this.paths.pop()} }
+const lessonClient={generate:async()=>{throw Error('模型未配置')},cancel(){}};
 `;
   const indexSource = source('pages/Index');
   const methods = indexSource.slice(0, indexSource.indexOf('  @Builder'))
@@ -316,4 +321,27 @@ test('invalid resource destinations never reach the system browser', async () =>
   await app.openResource({ id: 'invalid', url: 'http://example.com' });
   assert.equal(launched, false);
   assert.match(app.resourceOpenError, /资源地址无效/);
+});
+
+
+test('node study uses the live node id and revision, persists via the domain command and undoes as one edit', async () => {
+ const {app,repo}=await appHarness();
+ const id=app.document.rootId;app.openLearning(id);
+ assert.equal(app.pathStack.paths[0].name,'NodeLearning');
+ const oldRevision=app.document.revision;
+ const note=encodeStudyNote('节点说明',{...emptyStudy(),code:'int x=1;',links:[{title:'来源',url:'https://example.com'}]});
+ assert.equal(app.saveLearning(note,oldRevision),true);
+ await repo.pending;
+ assert.equal(app.document.nodes[0].note,note);assert.equal(repo.docs.get(app.document.documentId).nodes[0].note,note);
+ assert.equal(app.saveLearning(note,oldRevision),false);
+ app.action({kind:'undo',nodeId:'',parentId:'',text:'',note:''});
+ assert.equal(app.document.nodes[0].note,'');
+});
+test('stale, foreign-document and generating states cannot overwrite node study data', async () => {
+ const {app}=await appHarness();app.openLearning(app.document.rootId);
+ app.busy=true;assert.equal(app.saveLearning('x',app.document.revision),false);app.busy=false;
+ app.learningDocumentId='other';assert.equal(app.saveLearning('x',app.document.revision),false);
+ app.learningDocumentId=app.document.documentId;
+ await assert.rejects(app.generateLesson({documentId:'foreign',nodeId:app.learningNodeId,baseRevision:app.document.revision}),/版本/);
+ app.candidate={};const count=app.pathStack.paths.length;app.openLearning(app.document.rootId);assert.equal(app.pathStack.paths.length,count);
 });

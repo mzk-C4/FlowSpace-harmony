@@ -15,6 +15,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 function runtime({ width = 390, height = 330, initialDocuments, osDark = false, gateway } = {}) {
   const elements = new Map(), saved = new Map(), urls = new Map(), downloads = [], listeners = new Map(), classes = new Set();
   const darkMedia = { matches: osDark, addEventListener(name, callback) { this.onChange = callback; } };
+  const reduceMedia = { matches: false, addEventListener(name, callback) { this.onChange = callback; } };
   let networkCalls = 0;
   if (initialDocuments) saved.set('flowspace.preview.documents', JSON.stringify(initialDocuments));
   const element = () => ({
@@ -48,7 +49,7 @@ function runtime({ width = 390, height = 330, initialDocuments, osDark = false, 
     document, window: { location: gateway ? new URL('http://127.0.0.1:18797') : new URL('file:///preview/index.html'),
       scrollTo() {}, addEventListener() {} },
     localStorage: { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) },
-    matchMedia: () => darkMedia,
+    matchMedia: query => query.includes('prefers-reduced-motion') ? reduceMedia : darkMedia,
     requestAnimationFrame: fn => fn(), setTimeout: () => 0, clearTimeout() {},
     console, URL: BlobURL, Blob, Date, Math, AbortController, TextDecoder,
     fetch: async (path, options) => {
@@ -521,4 +522,23 @@ test('library details show verification date, separate code license and title-on
   assert.equal(app.run('page'), 'home');
   assert.match(app.get('#prompt').value, /动手学深度学习/);
   assert.match(app.get('#prompt').value, /没有读取原站全文/);
+});
+
+test('node study preview attaches code/links through the actual edit history and preserves metadata in backups', () => {
+ const app=runtime();app.run('openStudy()');assert.equal(app.get('#study-overlay').hidden,false);
+ app.run('editStudy()');app.get('#study-note-text').value='复利说明';app.get('#study-language').value='Python';app.get('#study-code-input').value='print(100 * 1.1)';
+ app.get('#study-links').value='说明 | https://example.com';app.run('saveStudyForm()');
+ assert.equal(app.run('decodeStudyNote(current.nodes.find(n=>n.id===selected).note).study.code'),'print(100 * 1.1)');
+ assert.equal(app.run('past.length'),1);app.run('undo()');assert.equal(app.run('decodeStudyNote(current.nodes.find(n=>n.id===selected).note).study.links.length'),0);
+ app.run('redo()');assert.equal(app.run('decodeStudyNote(current.nodes.find(n=>n.id===selected).note).study.links.length'),1);
+});
+test('node study preview uses identical built-in scripts and safely displays saved code as text', () => {
+ const app=runtime();app.run("openStudy('ring');studyStep(3)");assert.match(app.get('#study-body').innerHTML,/a\[5\] = 5/);
+ app.run("selectStudyDemo('stack');studyStep(99)");assert.match(app.get('#study-body').innerHTML,/栈顶变成 2/);
+ app.run("openStudy();studyState.note.study.code='<img src=x onerror=alert(1)>';renderStudy()");
+ assert.match(app.get('#study-body').innerHTML,/&lt;img/);assert.doesNotMatch(app.get('#study-body').innerHTML,/<img src=x/);
+});
+test('node study preview cannot apply a generated candidate over a newer node revision', () => {
+ const app=runtime();app.run(`openStudy();studyState.candidate={...VISUAL_LESSONS[0],id:'generated'};studyState.generationRevision=current.revision;applyEdit(()=>{current.title='新版'});applyStudyCandidate()`);
+ assert.match(app.run('studyState.error'),/旧候选不能覆盖/);assert.equal(app.run('decodeStudyNote(current.nodes.find(n=>n.id===selected).note).study.generated===undefined'),true);
 });

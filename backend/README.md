@@ -72,3 +72,15 @@ node --test backend/tests/*.test.mjs
 ```
 
 测试使用本地 HTTP 假上游，无外部凭据、无付费调用。验证跨网络块 UTF-8/SSE、候选结构、一次修复、取消与并发、请求重放、超时和错误。未配置/调用任何真实供应商，真实模型输出质量与供应商特定参数兼容性仍需使用者填入配置后实测。当前请求使用 `stream:true`、`temperature:0.2` 和 `max_tokens:12000`；供应商须支持这些 Chat Completions 字段。
+
+## 任意主题的节点动态讲解
+
+`POST /api/lessons/generate` 复用相同 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`。密钥只在服务端配置，不发给手机或网页。网页从网关的 `/` 打开，使用同源接口；手机沿用个人页设置的后端地址。
+
+请求 JSON：`{requestId, documentId, nodeId, baseRevision, topic, instruction, context, code, links:[{title,url}]}`。主题最多500字，补充要求2000字，说明10000字，代码6000字，链接最多8项且仅允许 HTTPS。网关不抓取链接全文，也不运行代码。
+
+成功返回 JSON：`{requestId, documentId, nodeId, baseRevision, script}`。`script` 固定为 `id:'generated'`，`kind` 为 `array|stack|flow|compare`；包含标题、概述、规律/限制、可选原始来源、代码行和2–12个步骤。每步有 `title, explanation, operation, cells, active, start, end, codeLine`。cells最多8项，指针/高亮索引从0开始，缺省应显式填-1。代码最多40行；总脚本最多8000字符。无代码主题用概念、关系和公式解释。
+
+调用真实模型后校验结果；结构不合法修复一次，仍失败返回502，不替换为内置演示。来源 URL 只能来自输入链接。与导图生成共享文档并发锁；取消连接/超时终止上游。未配置返回503。前端先预览，显式应用后写入原节点；旧 revision 不得覆盖新编辑。
+
+这套结构校验只能确认可渲染与索引有效，不能证明知识事实或推导正确；AI内容在页面标记为待核对。内置环形数组、队列和栈用于教学/调试，明确标注不是本次AI结果。任意主题通过四种受控视图表达，不生成或执行任意 HTML/JavaScript 动画。

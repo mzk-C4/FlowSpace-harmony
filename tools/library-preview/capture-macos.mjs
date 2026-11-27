@@ -10,7 +10,7 @@ const studio=process.env.FLOWSPACE_DEVECO||'/Applications/DevEco-Studio.app/Cont
 const stage=mkdtempSync(join(tmpdir(),'flowspace-library-preview-'));
 for(const directory of ['AppScope','entry/src','hvigor'])cpSync(join(root,directory),join(stage,directory),{recursive:true});
 for(const file of ['build-profile.json5','oh-package.json5','hvigorfile.ts','entry/build-profile.json5','entry/oh-package.json5','entry/hvigorfile.ts'])copyFileSync(join(root,file),join(stage,file));
-copyFileSync(join(root,'tools/library-preview/LibraryPreview.ets'),join(stage,'entry/src/main/ets/pages/LibraryPreview.ets'));
+copyFileSync(process.env.FLOWSPACE_PREVIEW_HOST || join(root,'tools/library-preview/LibraryPreview.ets'),join(stage,'entry/src/main/ets/pages/LibraryPreview.ets'));
 const routes=join(stage,'entry/src/main/resources/base/profile/main_pages.json');
 const pages=JSON.parse(readFileSync(routes,'utf8'));pages.src.push('pages/LibraryPreview');writeFileSync(routes,JSON.stringify(pages));
 const output=process.env.FLOWSPACE_LIBRARY_OUTPUT||join(root,'artifacts/library-preview');mkdirSync(output,{recursive:true});

@@ -1,5 +1,7 @@
 import { GatewayError, subtreeIds, validateCandidate } from './validation.mjs';
 
+import { preserveNodeStudy } from './node-study.mjs';
+
 const nodeProperties = {
   id: { type: 'string' }, parentId: { type: 'string' }, order: { type: 'integer', minimum: 0 },
   text: { type: 'string' }, note: { type: 'string' }, collapsed: { type: 'boolean' }
@@ -123,6 +125,7 @@ export function assembleCandidate(output, request) {
     const id = ids.get(node.id), previous = existing.get(id);
     const fields = { note: previous?.note ?? '', collapsed: previous?.collapsed ?? false, ...node,
       id, parentId: ids.get(node.parentId) ?? node.parentId };
+    if (previous) fields.note = preserveNodeStudy(previous.note, fields.note);
     if (id === scopeRoot) { fields.parentId = root.parentId; fields.order = root.order; }
     return [id, fields];
   }));
