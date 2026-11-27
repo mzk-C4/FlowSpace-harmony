@@ -30,6 +30,8 @@
   #jump-chat { display:inline-block; }
   #chat-panel { scroll-margin-top:16px; }
 }
+
+.study-overlay[hidden]{display:none}.study-overlay{position:fixed;inset:0;z-index:60;background:var(--bg);overflow-y:auto}.study-header{position:sticky;top:0;background:var(--bg);z-index:2;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:20px max(20px,calc((100vw - 1000px)/2));gap:20px}.study-header h1{font-size:26px}.study-header button{color:var(--muted);flex-shrink:0}.study-body{max-width:1000px;padding:26px 20px 70px;margin:auto;display:grid;gap:22px}.study-block{border:1px solid var(--line);border-radius:16px;padding:22px;min-width:0}.study-block h2{font-size:20px;margin-bottom:12px}.study-block h3{font-size:16px;margin:14px 0}.study-block p{margin:12px 0;white-space:pre-wrap;overflow-wrap:anywhere}.study-block progress{appearance:none;width:100%;height:6px;border:0;margin:14px 0;background:var(--line);border-radius:9px}.study-block progress::-webkit-progress-bar{background:var(--line);border-radius:9px}.study-block progress::-webkit-progress-value{background:var(--accent);border-radius:9px}.study-scene{padding:18px;border:1px solid var(--line);border-radius:12px}.study-diagram{display:flex;align-items:center;justify-content:center;gap:14px;padding:24px 4px;min-height:130px}.study-diagram.array{justify-content:flex-start;overflow-x:auto}.study-diagram.stack,.study-diagram.flow{flex-direction:column}.study-diagram.compare{flex-wrap:wrap}.study-cell-wrap{display:flex;flex-direction:column;align-items:center;gap:9px;flex-shrink:0;max-width:100%}.study-cell{min-width:70px;min-height:62px;padding:16px;border:1px solid var(--line);background:var(--surface);border-radius:10px;font:500 21px/1.4 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}.study-cell.active{border:2px solid var(--accent);background:var(--soft);color:var(--accent)}.flow .study-cell,.compare .study-cell{font:15px/1.6 -apple-system,sans-serif;max-width:540px}.study-pointer{color:var(--accent);min-height:18px;font-family:monospace}.study-flow-arrow{color:var(--muted)}.study-operation{color:var(--accent);font:15px/1.7 ui-monospace,monospace;overflow-wrap:anywhere}.study-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.study-code{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;font:13px/1.8 ui-monospace,monospace;max-width:100%}.study-code span{display:block;padding:3px 8px}.study-code .current{background:var(--soft);color:var(--accent);border-left:3px solid var(--accent)}.study-error{color:var(--danger);line-height:1.7}.study-origin{font-size:12px;color:var(--accent)}.study-candidate{padding:18px;background:var(--soft);border-radius:12px}.study-candidate .row{margin-top:12px}.study-intro{white-space:pre-wrap;overflow-wrap:anywhere}#study-edit label{display:grid;gap:9px;margin:18px 0}#study-instruction{margin-bottom:14px}
 </style></head>
 <body>
 
@@ -64,7 +66,7 @@
 </section>
 <section id="page-diy" class="page editor-page" aria-label="DIY思维导图" hidden><div class="editor-head"><div><h2 id="map-title">新的想法</h2><small id="map-status">保存在此浏览器</small></div><button class="icon-btn" onclick="openExport()">导出 <span aria-hidden="true">↗</span></button></div>
   <div class="editor-grid"><div class="canvas-column">
-    <div id="candidate-box" aria-live="polite" tabindex="-1" hidden></div><div class="editor-toolbar"><button id="undo" onclick="undo()" aria-label="撤销"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4-6 6 6 6M3 10h10a7 7 0 0 1 7 7"/></svg></button><button id="redo" onclick="redo()" aria-label="重做"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 6 6-6 6m6-6H11a7 7 0 0 0-7 7"/></svg></button><span class="toolbar-spacer"></span><button id="add-node" onclick="nodeDialog('addChild')">＋ 节点</button><button onclick="openEditorMenu()" aria-label="更多导图操作">更多 ···</button></div><div class="canvas-wrap" id="canvas-wrap"><svg id="map-svg" role="group" aria-roledescription="思维导图" aria-label="可交互思维导图，点击节点选择，拖动画布平移" xmlns="http://www.w3.org/2000/svg"></svg><div class="canvas-bottom"><small id="node-count">0 个节点</small><div><button onclick="zoomBy(.8)" aria-label="缩小导图">−</button><small id="zoom-label">100%</small><button onclick="zoomBy(1.25)" aria-label="放大导图">＋</button><button onclick="fitMap()" style="font-size:10px">适应</button></div></div></div><div class="selected-info"><label>选中节点</label><div class="row"><strong id="selected-label"></strong><div><button class="secondary" id="jump-chat" onclick="jumpToChat()">继续整理</button><button id="edit-node" class="secondary" onclick="nodeDialog('edit')">编辑</button></div></div></div><details class="source"><summary>原始输入</summary><p id="source-text"></p></details></div><aside class="chat-panel" id="chat-panel" aria-labelledby="chat-heading">
+    <div id="candidate-box" aria-live="polite" tabindex="-1" hidden></div><div class="editor-toolbar"><button id="undo" onclick="undo()" aria-label="撤销"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4-6 6 6 6M3 10h10a7 7 0 0 1 7 7"/></svg></button><button id="redo" onclick="redo()" aria-label="重做"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 6 6-6 6m6-6H11a7 7 0 0 0-7 7"/></svg></button><span class="toolbar-spacer"></span><button id="add-node" onclick="nodeDialog('addChild')">＋ 节点</button><button onclick="openEditorMenu()" aria-label="更多导图操作">更多 ···</button></div><div class="canvas-wrap" id="canvas-wrap"><svg id="map-svg" role="group" aria-roledescription="思维导图" aria-label="可交互思维导图，点击节点选择，拖动画布平移" xmlns="http://www.w3.org/2000/svg"></svg><div class="canvas-bottom"><small id="node-count">0 个节点</small><div><button onclick="zoomBy(.8)" aria-label="缩小导图">−</button><small id="zoom-label">100%</small><button onclick="zoomBy(1.25)" aria-label="放大导图">＋</button><button onclick="fitMap()" style="font-size:10px">适应</button></div></div></div><div class="selected-info"><button class="secondary" onclick="openStudy()">学习详情 · 链接与代码</button><label>选中节点</label><div class="row"><strong id="selected-label"></strong><div><button class="secondary" id="jump-chat" onclick="jumpToChat()">继续整理</button><button id="edit-node" class="secondary" onclick="nodeDialog('edit')">编辑</button></div></div></div><details class="source"><summary>原始输入</summary><p id="source-text"></p></details></div><aside class="chat-panel" id="chat-panel" aria-labelledby="chat-heading">
       <div class="chat-title" id="chat-heading">继续整理</div>
       <div class="chat-scope">
         <span id="chat-scope"></span><button class="secondary" id="chat-whole" onclick="selectWholeMap()" hidden>改为整图</button>
@@ -80,9 +82,10 @@
     </aside>
   </div>
 </section>
-<section id="page-library" class="page" aria-label="资料库" hidden><div class="page-title"><h1>资料库</h1><p class="sub">工科开放资料与开源项目</p></div><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="resource-search" placeholder="搜索主题、来源或许可" aria-label="搜索资料" oninput="renderResources()"></div><div id="resource-chips" class="chips" role="group" aria-label="资料分类" style="margin-bottom:8px"></div><div class="row spread resource-count"><small id="resource-count" aria-live="polite"></small><button id="resource-reset" onclick="resetResources()">重置</button></div><div id="resource-list"></div><p class="notice">公开阅读不等于开源。详情中可查看来源与许可。</p></section>
+<section id="page-library" class="page" aria-label="资料库" hidden><div class="page-title"><h1>资料库</h1><p class="sub">工科开放资料与开源项目</p></div><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="resource-search" placeholder="搜索主题、来源或许可" aria-label="搜索资料" oninput="renderResources()"></div><div id="resource-chips" class="chips" role="group" aria-label="资料分类" style="margin-bottom:8px"></div><div class="row spread resource-count"><small id="resource-count" aria-live="polite"></small><button id="resource-reset" onclick="resetResources()">重置</button></div><button class="secondary full" style="margin:0 0 16px" onclick="openStudy('ring')">知识动态讲解 · 查看示例 ↗</button><div id="resource-list"></div><p class="notice">公开阅读不等于开源。详情中可查看来源与许可。</p></section>
 <section id="page-profile" class="page" aria-label="个人" hidden><h1 class="profile-heading">个人</h1><div class="profile-hero"><div class="avatar"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></div><div><h2>本地空间</h2><p class="muted" id="profile-meta">本地保存，无需登录</p></div></div><div class="section-head" style="margin-top:8px"><h2>我的导图</h2><button onclick="document.getElementById('import-file').click()">导入备份</button></div><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="document-search" aria-label="搜索我的导图" placeholder="查找一个想法" oninput="renderDocuments()"></div><div id="document-list"></div><div class="section-head"><h2>偏好与连接</h2></div><div class="setting-group"><div class="setting-row"><span>外观</span><select id="theme" aria-label="外观" onchange="saveSettings()"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div class="setting-row"><div>减少动效<p class="muted" style="font-size:10px">保留清晰的状态反馈</p></div><button id="reduce-motion" class="switch" role="switch" aria-label="减少动效" aria-checked="false" onclick="toggleMotion()"></button></div></div><div class="setting-group" style="padding-top:16px;padding-bottom:16px"><label>AI 网关</label><p id="backend-location" class="settings-status"></p><button class="outline full" onclick="checkConnection()">检测连接</button><p id="connection-status" class="settings-status" role="status"></p></div><p class="notice">保存在当前浏览器。清理数据前请导出 JSON 备份；备份可导入鸿蒙应用。</p><div class="handoff-entry"><button onclick="openHandoff()" style="padding-left:0;font-size:12px">关于与团队分工</button></div></section>
 </main><nav class="bottom-nav" aria-label="一级导航"><button class="nav-item active" data-page="home" onclick="switchPage('home')"><svg class="icon" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/></svg>首页</button><button class="nav-item" data-page="diy" onclick="switchPage('diy')"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="9" width="6" height="6" rx="2"/><rect x="16" y="2" width="6" height="6" rx="2"/><rect x="16" y="16" width="6" height="6" rx="2"/><path d="M8 12h4V5h4m-4 7v7h4"/></svg>DIY 导图</button><button class="nav-item" data-page="library" onclick="switchPage('library')"><svg class="icon" viewBox="0 0 24 24"><path d="M3 4h7v17H3Zm7 0h6v17h-6Zm6 1 4-1 4 16-4 1Z"/></svg>资料库</button><button class="nav-item" data-page="profile" onclick="switchPage('profile')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>个人</button></nav></div>
+<section id="study-overlay" class="study-overlay" role="dialog" aria-modal="true" aria-label="节点学习详情" hidden><header class="study-header"><h1 id="study-heading"></h1><button onclick="closeStudy()" aria-label="关闭学习详情">关闭 ×</button></header><div id="study-body" class="study-body"></div></section>
 <dialog class="dialog" id="dialog"><div id="dialog-content"></div></dialog><input id="import-file" type="file" accept="application/json,.json" hidden><div id="toast" class="toast" role="status" hidden></div>
 <script>
 'use strict';
@@ -806,7 +809,7 @@ function renderEditor() {
   renderGenerationControls();
   drawMap(view);
 }
-function nodeDialog(kind){if(candidate)return toast('请先应用或放弃当前候选。');if(kind==='addSibling'&&selectedNode().id===current.rootId)return toast('根节点没有同级节点，请添加子节点');const n=selectedNode();dialog(`<h2>${kind==='edit'?'编辑节点':kind==='addChild'?'添加子节点':'添加同级节点'}</h2><form id="node-form"><label for="node-text">节点文字</label><input id="node-text" maxlength="500" required value="${kind==='edit'?esc(n.text):''}" autocomplete="off"><label for="node-note">备注（可选）</label><textarea id="node-note" style="min-height:85px" maxlength="10000">${kind==='edit'?esc(n.note):''}</textarea><div class="actions"><button type="button" onclick="closeDialog()">取消</button><button class="primary" type="submit">保存</button></div></form>`);$('#node-form').onsubmit=e=>{e.preventDefault();const text=$('#node-text').value.trim(),note=$('#node-note').value.trim();if(!text)return;applyEdit(()=>{if(kind==='edit'){n.text=text;n.note=note;if(n.id===current.rootId)current.title=text.slice(0,200)}else{const parent=kind==='addChild'?n.id:n.parentId;const p=current.nodes.find(x=>x.id===parent);p.collapsed=false;selected=append(current,parent,text);selectedNode().note=note}});closeDialog();fitMap()};setTimeout(()=>$('#node-text').focus(),0)}
+function nodeDialog(kind){if(candidate)return toast('请先应用或放弃当前候选。');if(kind==='addSibling'&&selectedNode().id===current.rootId)return toast('根节点没有同级节点，请添加子节点');const n=selectedNode();let study=null,plain=n.note;try{const p=decodeStudyNote(n.note);study=p.study;plain=p.text}catch{}dialog(`<h2>${kind==='edit'?'编辑节点':kind==='addChild'?'添加子节点':'添加同级节点'}</h2><form id="node-form"><label for="node-text">节点文字</label><input id="node-text" maxlength="500" required value="${kind==='edit'?esc(n.text):''}" autocomplete="off"><label for="node-note">备注（可选）</label><textarea id="node-note" style="min-height:85px" maxlength="10000">${kind==='edit'?esc(plain):''}</textarea><div class="actions"><button type="button" onclick="closeDialog()">取消</button><button class="primary" type="submit">保存</button></div></form>`);$('#node-form').onsubmit=e=>{e.preventDefault();const text=$('#node-text').value.trim(),note=$('#node-note').value.trim();if(!text)return;applyEdit(()=>{if(kind==='edit'){n.text=text;n.note=study?encodeStudyNote(note,study):note;if(n.id===current.rootId)current.title=text.slice(0,200)}else{const parent=kind==='addChild'?n.id:n.parentId;const p=current.nodes.find(x=>x.id===parent);p.collapsed=false;selected=append(current,parent,text);selectedNode().note=note}});closeDialog();fitMap()};setTimeout(()=>$('#node-text').focus(),0)}
 function deleteNode(){if(candidate)return toast('请先应用或放弃当前候选。');const n=selectedNode();if(n.id===current.rootId)return toast('根节点不能删除');dialog(`<h2>删除这个分支？</h2><p>「${esc(n.text)}」及全部子节点将被删除。你可以通过撤销恢复。</p><div class="actions"><button onclick="closeDialog()">保留</button><button class="primary" id="confirm-delete">删除分支</button></div>`);$('#confirm-delete').onclick=()=>{applyEdit(()=>{const remove=new Set([n.id]);let size;do{size=remove.size;current.nodes.forEach(x=>{if(remove.has(x.parentId))remove.add(x.id)})}while(size!==remove.size);current.nodes=current.nodes.filter(x=>!remove.has(x.id));selected=n.parentId});closeDialog();fitMap()}}
 function toggleCollapse(){if(!current.nodes.some(n=>n.parentId===selected))return toast('这个节点还没有子节点');applyEdit(()=>selectedNode().collapsed=!selectedNode().collapsed);fitMap()}
 function changeLayout(){applyEdit(()=>current.layout=current.layout==='right'?'down':'right');fitMap()}
@@ -916,9 +919,533 @@ function openExample() {
   switchPage('diy');
 }
 function openEditorMenu(){dialog('<h2>导图操作</h2><div class="menu-grid"><button onclick="closeDialog();nodeDialog(\'edit\')">编辑选中节点</button><button onclick="closeDialog();nodeDialog(\'addSibling\')">添加同级节点</button><button onclick="closeDialog();toggleCollapse()">折叠 / 展开分支</button><button onclick="closeDialog();changeLayout()">切换横向 / 纵向</button><button onclick="closeDialog();newMap()">新建空白导图</button><button class="danger" onclick="closeDialog();deleteNode()">删除选中分支</button></div>')}
-function handleKeyboard(event){if(event.isComposing||$('#dialog').open)return;const target=event.target||{},typing=['INPUT','TEXTAREA','SELECT'].includes(target.tagName)||target.isContentEditable;if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();if(page==='home')generateFromPrompt();else if(page==='diy')reviseFromChat();return}if(event.key==='Enter'&&target.id==='chat-input'&&!event.shiftKey){event.preventDefault();reviseFromChat();return}if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'&&page==='diy'){event.preventDefault();event.shiftKey?redo():undo()}}
+function handleKeyboard(event){if(studyState){if(event.key==='Escape')closeStudy();return}if(event.isComposing||$('#dialog').open)return;const target=event.target||{},typing=['INPUT','TEXTAREA','SELECT'].includes(target.tagName)||target.isContentEditable;if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();if(page==='home')generateFromPrompt();else if(page==='diy')reviseFromChat();return}if(event.key==='Enter'&&target.id==='chat-input'&&!event.shiftKey){event.preventDefault();reviseFromChat();return}if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'&&page==='diy'){event.preventDefault();event.shiftKey?redo():undo()}}
 document.addEventListener('keydown',handleKeyboard);
 
+// BEGIN GENERATED NODE LEARNING
+function validateLesson(lesson) {
+    if (!lesson || lesson.id !== 'generated' || ![
+        'array',
+        'stack',
+        'flow',
+        'compare'
+    ].includes(lesson.kind)) {
+        throw new Error('讲解格式无效，只支持数组、栈、流程与对照图。');
+    }
+    const texts = [
+        lesson.title,
+        lesson.summary,
+        lesson.invariant,
+        lesson.sourceTitle,
+        lesson.sourceUrl
+    ];
+    const limits = [
+        120,
+        800,
+        600,
+        120,
+        2000
+    ];
+    texts.forEach((value, index)=>{
+        if (typeof value !== 'string' || value.length > limits[index] || index < 3 && !value.trim()) throw new Error('讲解标题或说明无效。');
+    });
+    if (lesson.sourceUrl !== '' && !/^https:\/\/[^\s\/@?#:]+(?::\d{1,5})?(?:[\/?#][^\s]*)?$/.test(lesson.sourceUrl)) throw new Error('讲解来源地址无效。');
+    if (!Array.isArray(lesson.code) || lesson.code.length > 40 || lesson.code.some((line)=>typeof line !== 'string' || line.length > 200)) throw new Error('讲解代码过长。');
+    if (!Array.isArray(lesson.steps) || lesson.steps.length < 2 || lesson.steps.length > 12) throw new Error('讲解应有 2–12 步。');
+    lesson.steps.forEach((step)=>{
+        if (!step || typeof step.title !== 'string' || !step.title.trim() || step.title.length > 120 || typeof step.explanation !== 'string' || !step.explanation.trim() || step.explanation.length > 600 || typeof step.operation !== 'string' || step.operation.length > 160 || !Array.isArray(step.cells) || step.cells.length > 8 || step.cells.some((cell)=>typeof cell !== 'string' || cell.length > 80)) throw new Error('讲解步骤内容无效。');
+        [
+            step.active,
+            step.start,
+            step.end
+        ].forEach((index)=>{
+            if (!Number.isInteger(index) || index < -1 || index >= step.cells.length) throw new Error('可视元素索引越界。');
+        });
+        if (!Number.isInteger(step.codeLine) || step.codeLine < -1 || step.codeLine >= lesson.code.length) throw new Error('代码高亮行越界。');
+    });
+    if (JSON.stringify(lesson).length > 8000) throw new Error('讲解过长，请缩小主题后重新生成。');
+}
+
+const STUDY_MARKER = '\n\n```flowspace-learning-v1\n';
+function emptyStudy() {
+    return {
+        version: 1,
+        lessonId: '',
+        language: 'C++',
+        code: '',
+        links: []
+    };
+}
+function validStudyUrl(url) {
+    return /^https:\/\/[^\s\/@?#:]+(?::\d{1,5})?(?:[\/?#][^\s]*)?$/.test(url) && url.length <= 2000 && !/[<>"\\\u0000-\u001f]/.test(url);
+}
+function validateStudy(study) {
+    if (!study || study.version !== 1) throw new Error('不支持的节点资料版本，请保留原备注。');
+    if (typeof study.lessonId !== 'string' || ![
+        '',
+        'ring',
+        'queue',
+        'stack'
+    ].includes(study.lessonId)) {
+        throw new Error('请选择已有的动态讲解；暂不支持这个讲解类型。');
+    }
+    if (typeof study.language !== 'string' || study.language.length > 30 || typeof study.code !== 'string' || study.code.length > 6000) throw new Error('代码最多 6000 字，语言最多 30 字。');
+    if (!Array.isArray(study.links) || study.links.length > 8) throw new Error('每个节点最多添加 8 个资料链接。');
+    if (study.generated !== undefined) validateLesson(study.generated);
+    study.links.forEach((link)=>{
+        if (!link || typeof link.title !== 'string' || !link.title.trim() || link.title.length > 120 || typeof link.url !== 'string' || !validStudyUrl(link.url)) throw new Error('请填写链接标题和有效的 HTTPS 原站地址。');
+    });
+}
+function decodeStudyNote(note) {
+    const index = note.lastIndexOf(STUDY_MARKER);
+    if (index < 0) return {
+        text: note,
+        study: emptyStudy()
+    };
+    const tail = note.slice(index + STUDY_MARKER.length);
+    if (!tail.endsWith('\n```')) throw new Error('节点资料区块不完整，请先在节点备注中检查，原内容已保留。');
+    let study;
+    try {
+        study = JSON.parse(tail.slice(0, -4));
+    } catch (_) {
+        throw new Error('节点资料格式损坏，原备注未被覆盖，请在节点备注中检查。');
+    }
+    validateStudy(study);
+    return {
+        text: note.slice(0, index),
+        study: study
+    };
+}
+function encodeStudyNote(text, study) {
+    validateStudy(study);
+    if (text.includes(STUDY_MARKER)) throw new Error('说明中含资料区块标记，请先检查节点备注。');
+    const hasStudy = study.lessonId !== '' || study.code !== '' || study.links.length > 0 || study.generated !== undefined;
+    const note = hasStudy ? text + STUDY_MARKER + JSON.stringify(study) + '\n```' : text;
+    if (note.length > 10000) throw new Error('说明、链接和代码合计超过节点备注 10000 字上限，请缩短后保存。');
+    return note;
+}
+
+const RING = {
+    id: 'ring',
+    kind: 'array',
+    title: '环形数组',
+    summary: '数组长度固定为 6，start 指向队头，end 指向下一个可写位置。用 size 区分空和满，跨越边界时取模回绕。',
+    invariant: '0 ≤ size ≤ 6；end = (start + size) % 6。固定容量、尚未满时，两端操作为 O(1)。',
+    sourceTitle: 'cppreference · std::deque（标准双端队列接口参考）',
+    sourceUrl: 'https://en.cppreference.com/w/cpp/container/deque.html',
+    code: [
+        'static constexpr int N = 6;',
+        'int a[N] = {4, 2, 3}, start = 0, size = 3;',
+        'bool addFirst(int value) {',
+        '  if (size == N) return false;',
+        '  start = (start + N - 1) % N;',
+        '  a[start] = value;',
+        '  ++size;',
+        '  return true;',
+        '}',
+        'int endIndex() { return (start + size) % N; }'
+    ],
+    steps: [
+        {
+            title: '初始：三个元素',
+            explanation: '逻辑顺序为 4、2、3；start = 0，size = 3，因此 end = 3。空槽用 · 表示。',
+            operation: 'end = (0 + 3) % 6 = 3',
+            cells: [
+                '4',
+                '2',
+                '3',
+                '·',
+                '·',
+                '·'
+            ],
+            active: -1,
+            start: 0,
+            end: 3,
+            codeLine: 1
+        },
+        {
+            title: '先检查容量',
+            explanation: 'size 为 3，小于容量 6，可以向队头插入。若已满则返回 false，指针和元素保持不变。',
+            operation: 'size == N ? 3 == 6 → false',
+            cells: [
+                '4',
+                '2',
+                '3',
+                '·',
+                '·',
+                '·'
+            ],
+            active: -1,
+            start: 0,
+            end: 3,
+            codeLine: 3
+        },
+        {
+            title: 'start 向前移动并回绕',
+            explanation: '在索引 0 的前一个位置是索引 5。先加容量再取模，避免 C++ 中负数余数导致负索引。',
+            operation: 'start: 0 → (0 + 6 - 1) % 6 = 5',
+            cells: [
+                '4',
+                '2',
+                '3',
+                '·',
+                '·',
+                '·'
+            ],
+            active: 5,
+            start: 5,
+            end: 3,
+            codeLine: 4
+        },
+        {
+            title: '在索引 5 写入 5',
+            explanation: '把 5 写在新的队头位置。此时正在操作中，还未更新 size；物理位置回到末端，逻辑上却在 4 的前面。',
+            operation: 'a[5] = 5',
+            cells: [
+                '4',
+                '2',
+                '3',
+                '·',
+                '·',
+                '5'
+            ],
+            active: 5,
+            start: 5,
+            end: 3,
+            codeLine: 5
+        },
+        {
+            title: '提交插入：更新长度',
+            explanation: 'size 增加到 4，逻辑顺序为 5 → 4 → 2 → 3。操作完成后，end = (5 + 4) % 6 = 3。',
+            operation: '++size → 4；逻辑顺序 5 → 4 → 2 → 3',
+            cells: [
+                '4',
+                '2',
+                '3',
+                '·',
+                '·',
+                '5'
+            ],
+            active: 5,
+            start: 5,
+            end: 3,
+            codeLine: 6
+        },
+        {
+            title: '读懂指针与复杂度',
+            explanation: 'start 是已有队头，end 是下一个空位，并不指向最后一个元素。插入只更新常数个位置，不搬动已有元素。这里的实现是教学用固定数组，不是 std::deque 的内部实现。',
+            operation: 'addFirst(5) 完成；start = 5，end = 3',
+            cells: [
+                '4',
+                '2',
+                '3',
+                '·',
+                '·',
+                '5'
+            ],
+            active: -1,
+            start: 5,
+            end: 3,
+            codeLine: 9
+        }
+    ]
+};
+const QUEUE = {
+    id: 'queue',
+    kind: 'array',
+    title: '队列 · 先进先出',
+    summary: '从队尾入队，从队头出队。先进入的元素先离开，适合广度优先搜索与任务排队。',
+    invariant: 'front 是最早尚未移除的元素。空队列不可读取或出队；底层容器与接口复杂度需分别确认。',
+    sourceTitle: 'cppreference · std::queue',
+    sourceUrl: 'https://en.cppreference.com/w/cpp/container/queue.html',
+    code: [
+        'std::queue<int> q;',
+        'q.push(1);',
+        'q.push(2);',
+        'q.push(3);',
+        'if (!q.empty()) {',
+        '  int value = q.front(); // 1',
+        '  q.pop();',
+        '}'
+    ],
+    steps: [
+        {
+            title: '建立空队列',
+            explanation: '队列最初没有元素。只有非空时，front 和 pop 才合法。',
+            operation: 'queue = []',
+            cells: [],
+            active: -1,
+            start: -1,
+            end: -1,
+            codeLine: 0
+        },
+        {
+            title: '1 从队尾入队',
+            explanation: '第一个元素同时是队头和队尾。',
+            operation: 'push(1)',
+            cells: [
+                '1'
+            ],
+            active: 0,
+            start: 0,
+            end: 0,
+            codeLine: 1
+        },
+        {
+            title: '2 排在 1 后面',
+            explanation: '不能从中间插入或直接移除队尾。队列接口约束了访问顺序。',
+            operation: 'push(2)',
+            cells: [
+                '1',
+                '2'
+            ],
+            active: 1,
+            start: 0,
+            end: 1,
+            codeLine: 2
+        },
+        {
+            title: '3 继续排队',
+            explanation: '队头仍然为 1，队尾变成 3。进入顺序为 1、2、3。',
+            operation: 'push(3)',
+            cells: [
+                '1',
+                '2',
+                '3'
+            ],
+            active: 2,
+            start: 0,
+            end: 2,
+            codeLine: 3
+        },
+        {
+            title: '读取队头，不删除',
+            explanation: 'front() 返回 1；读取之后队列内容不变。先检查 empty()，防止对空队列操作。',
+            operation: 'front() → 1',
+            cells: [
+                '1',
+                '2',
+                '3'
+            ],
+            active: 0,
+            start: 0,
+            end: 2,
+            codeLine: 5
+        },
+        {
+            title: '移除最早的元素',
+            explanation: 'pop() 不返回元素，它只移除队头。1 离开后，2 成为新的队头。',
+            operation: 'pop()；队列变成 2 → 3',
+            cells: [
+                '2',
+                '3'
+            ],
+            active: 0,
+            start: 0,
+            end: 1,
+            codeLine: 6
+        }
+    ]
+};
+const STACK = {
+    id: 'stack',
+    kind: 'stack',
+    title: '栈 · 后进先出',
+    summary: '在栈顶压入与弹出。最后压入的元素最先离开，常见于括号匹配、深度优先搜索和撤销记录。',
+    invariant: '只能通过栈顶访问元素。top() 读取，pop() 移除；两者都要求栈非空。',
+    sourceTitle: 'cppreference · std::stack',
+    sourceUrl: 'https://en.cppreference.com/w/cpp/container/stack.html',
+    code: [
+        'std::stack<int> s;',
+        's.push(1);',
+        's.push(2);',
+        's.push(3);',
+        'if (!s.empty()) {',
+        '  int value = s.top(); // 3',
+        '  s.pop();',
+        '}'
+    ],
+    steps: [
+        {
+            title: '空栈',
+            explanation: '栈底在下，栈顶在上。空栈不能读取 top() 或执行 pop()。',
+            operation: 'stack = []',
+            cells: [],
+            active: -1,
+            start: -1,
+            end: -1,
+            codeLine: 0
+        },
+        {
+            title: '压入 1',
+            explanation: '1 成为第一个元素，处于栈底，同时也是栈顶。',
+            operation: 'push(1)',
+            cells: [
+                '1'
+            ],
+            active: 0,
+            start: 0,
+            end: -1,
+            codeLine: 1
+        },
+        {
+            title: '在 1 上方压入 2',
+            explanation: '2 是新的栈顶。不能越过 2 直接弹出 1。',
+            operation: 'push(2)',
+            cells: [
+                '1',
+                '2'
+            ],
+            active: 1,
+            start: 1,
+            end: -1,
+            codeLine: 2
+        },
+        {
+            title: '再压入 3',
+            explanation: '3 最后进入，因此它会最先被弹出。',
+            operation: 'push(3)',
+            cells: [
+                '1',
+                '2',
+                '3'
+            ],
+            active: 2,
+            start: 2,
+            end: -1,
+            codeLine: 3
+        },
+        {
+            title: '只读取栈顶',
+            explanation: 'top() 返回 3，并不删除它。代码先检查 empty()，再安全读取。',
+            operation: 'top() → 3',
+            cells: [
+                '1',
+                '2',
+                '3'
+            ],
+            active: 2,
+            start: 2,
+            end: -1,
+            codeLine: 5
+        },
+        {
+            title: '弹出 3',
+            explanation: 'pop() 不返回值，只移除栈顶。现在 2 成为栈顶；这体现了后进先出。',
+            operation: 'pop()；栈顶变成 2',
+            cells: [
+                '1',
+                '2'
+            ],
+            active: 1,
+            start: 1,
+            end: -1,
+            codeLine: 6
+        }
+    ]
+};
+const VISUAL_LESSONS = [
+    RING,
+    QUEUE,
+    STACK
+];
+function visualLesson(id) {
+    return VISUAL_LESSONS.find((lesson)=>lesson.id === id) || RING;
+}
+function lessonFrame(id, step) {
+    const lesson = visualLesson(id);
+    const index = Math.max(0, Math.min(lesson.steps.length - 1, Math.floor(step) || 0));
+    return lesson.steps[index];
+}
+
+// Included by tools/sync-learning-preview.mjs; same schema and built-ins as native.
+let studyState=null, studyTimer=0, studyController=null;
+function stopStudy(){if(studyTimer)clearInterval(studyTimer);studyTimer=0}
+function studyIsReduced(){return !!settings.reduceMotion||matchMedia('(prefers-reduced-motion: reduce)').matches}
+function openStudy(rid=''){
+  stopStudy();
+  const node=rid?null:current.nodes.find(n=>n.id===selected);
+  if(activeGeneration||candidate){toast('请先完成或放弃当前导图生成。');return}if(!rid&&!node){toast('先选择一个节点');return}
+  let parsed={text:'',study:emptyStudy()},error='';
+  try{if(node)parsed=decodeStudyNote(node.note)}catch(e){error=e.message}
+  studyState={nodeId:node?.id||'',documentId:current.documentId,revision:current.revision,title:node?.text||'知识动态讲解',note:parsed,step:0,builtIn:rid,candidate:null,generationRevision:-1,error,damaged:!!error,returnPage:page,editing:false};
+  $('#study-overlay').hidden=false;document.querySelector('.app').inert=true;renderStudy();
+}
+function closeStudy(){
+  if(studyState?.candidate||studyController||studyState?.editing){
+    if(!confirm('离开会放弃未保存的资料/候选并取消生成，是否继续？'))return;
+  }
+  stopStudy();studyController?.abort();studyController=null;$('#study-overlay').hidden=true;document.querySelector('.app').inert=false;studyState=null;
+}
+function studyActive(){return studyState.candidate||(studyState.builtIn?visualLesson(studyState.builtIn):studyState.note.study.generated)||visualLesson(studyState.note.study.lessonId)}
+function studyStep(delta){stopStudy();const lesson=studyActive();studyState.step=Math.max(0,Math.min(lesson.steps.length-1,studyState.step+delta));renderStudy()}
+function playStudy(){
+  if(studyTimer){stopStudy();renderStudy();return}
+  if(studyIsReduced())return;
+  if(studyState.step===studyActive().steps.length-1)studyState.step=0;
+  studyTimer=setInterval(()=>{if(!studyState){stopStudy();return}if(studyState.step<studyActive().steps.length-1)studyState.step++;if(studyState.step===studyActive().steps.length-1)stopStudy();renderStudy()},2200);renderStudy();
+}
+function selectStudyDemo(id){stopStudy();studyState.builtIn=id;studyState.step=0;renderStudy()}
+function renderStudy(){
+ const s=studyState;if(!s)return;const meta=s.note.study;
+ const has=!!(s.candidate||s.builtIn||meta.generated||meta.lessonId),lesson=studyActive(),frame=lesson.steps[s.step]||lesson.steps[0];
+ const e=esc;let diagram='';
+ const cells=frame.cells.map((text,i)=>({text,i}));if(lesson.kind==='stack')cells.reverse();
+ diagram=cells.map(({text,i})=>`<div class="study-cell-wrap">${lesson.kind==='array'?`<small>${i}</small>`:''}<div class="study-cell ${i===frame.active?'active':''}">${e(text)}</div>${['array','stack'].includes(lesson.kind)?`<small class="study-pointer">${frame.start===i?(lesson.kind==='stack'?'top':'start'):''}${frame.end===i?' end':''}</small>`:''}</div>${lesson.kind==='flow'&&i<cells.length-1?'<span class="study-flow-arrow">↓</span>':''}`).join('');
+ $('#study-heading').textContent=s.title;
+ $('#study-body').innerHTML=`${s.error?`<p class="study-error" role="alert">${e(s.error)}</p>`:''}${s.nodeId?`<div class="study-intro">${e(s.note.text||'为这个节点添加知识说明、资料链接或代码，再生成分步讲解。')}</div><button class="secondary" onclick="editStudy()" ${s.damaged||s.candidate||studyController?'disabled':''}>编辑说明、链接与代码</button><div class="study-block"><h2>AI 动态讲解</h2><p>按当前节点生成，可覆盖任意主题。链接未读取全文；代码仅展示，不执行。生成结果先预览，确认后保存。</p><textarea id="study-instruction" maxlength="2000" placeholder="补充讲解要求：类比、推导、例子、反例…">${e(s.instruction||'')}</textarea><div class="row wrap"><button class="primary" onclick="generateStudy()" ${s.damaged||s.candidate||studyController?'disabled':''}>${studyController?'正在生成…':meta.generated?'重新生成讲解':'生成动态讲解'}</button>${studyController?'<button class="secondary" onclick="cancelStudyGeneration()">取消生成</button>':''}</div><p class="muted">通过当前页面的真实模型网关生成；离线或未配置时显示错误。</p></div>`:'<p class="muted">内置教学演示。给任意节点生成 AI 讲解，请在 DIY 选中节点后打开“学习详情”。</p>'}
+ ${s.candidate?`<div class="study-candidate"><strong>AI 候选 · 尚未保存，请核对知识与步骤</strong><div class="row"><button class="secondary" onclick="discardStudyCandidate()">放弃</button><button class="primary" onclick="applyStudyCandidate()">应用并保存</button></div></div>`:''}
+ ${has?`<section class="study-block"><div class="row spread"><h2>${e(lesson.title)}</h2><span class="muted">${s.step+1}/${lesson.steps.length}</span></div><progress max="${lesson.steps.length}" value="${s.step+1}"></progress><p class="muted">${e(lesson.summary)}</p><p class="study-origin">${s.candidate||(!s.builtIn&&meta.generated)?'AI 生成 · 请核对事实与来源':'内置演示 · 非本次 AI 生成'}</p><div class="study-scene"><h3>${e(frame.title)}</h3><div class="study-diagram ${e(lesson.kind)}">${diagram||'<p class="muted">空结构 · 暂无元素</p>'}</div><div class="study-operation">${e(frame.operation)}</div><p>${e(frame.explanation)}</p></div><div class="study-controls"><button class="secondary" onclick="studyStep(-1)" ${s.step===0?'disabled':''}>上一步</button><button class="primary" onclick="playStudy()" ${studyIsReduced()?'disabled':''}>${studyTimer?'暂停':s.step===lesson.steps.length-1?'重播':'播放'}</button><button class="secondary" onclick="studyStep(1)" ${s.step===lesson.steps.length-1?'disabled':''}>下一步</button></div>${studyIsReduced()?'<p class="muted">减少动效已开启，请手动切换步骤。</p>':''}<h3>关键规律 / 注意事项</h3><p>${e(lesson.invariant)}</p>${lesson.code.length?`<h3>逐行代码 · 与步骤对应</h3><pre class="study-code">${lesson.code.map((line,i)=>`<span class="${i===frame.codeLine?'current':''}">${i+1}  ${e(line)}</span>`).join('')}</pre>`:''}${lesson.sourceUrl?`<a class="external-resource secondary" href="${e(lesson.sourceUrl)}" target="_blank" rel="noopener noreferrer">${e(lesson.sourceTitle||'参考来源')} ↗</a>`:''}</section>`:''}
+ ${meta.links.length?`<section class="study-block"><h2>节点资料</h2>${meta.links.map(l=>`<a class="external-resource secondary" href="${e(l.url)}" target="_blank" rel="noopener noreferrer">${e(l.title)} ↗</a>`).join('')}</section>`:''}
+ ${meta.code?`<section class="study-block"><h2>附带代码 · ${e(meta.language)}</h2><pre class="study-code">${e(meta.code)}</pre></section>`:''}
+ <section class="study-block"><h3>内置演示 · 切换不修改节点</h3><div class="row wrap">${VISUAL_LESSONS.map(l=>`<button class="${s.builtIn===l.id?'primary':'secondary'}" onclick="selectStudyDemo('${l.id}')">${e(l.title)}</button>`).join('')}${meta.generated||s.candidate?'<button class="secondary" onclick="selectStudyDemo(\'\')">返回 AI 讲解</button>':''}</div></section>`;
+}
+function saveStudy(note,revision){
+ const s=studyState;if(!s||s.documentId!==current.documentId||revision!==current.revision||candidate)return false;
+ const node=current.nodes.find(n=>n.id===s.nodeId);if(!node)return false;
+ decodeStudyNote(note);if(activeGeneration||!applyEdit(()=>{current.nodes.find(n=>n.id===s.nodeId).note=note}))return false;s.revision=current.revision;s.note=decodeStudyNote(note);return true;
+}
+function editStudy(){
+ const s=studyState;if(!s||!s.nodeId||s.damaged)return;stopStudy();s.editing=true;s.editRevision=current.revision;
+ $('#study-body').innerHTML=`<form id="study-edit" onsubmit="event.preventDefault();saveStudyForm()"><h2>编辑节点资料</h2><label>知识说明<textarea id="study-note-text" maxlength="10000">${esc(s.note.text)}</textarea></label><label>链接，每行“标题 | https://地址”，最多8条<textarea id="study-links" rows="4">${esc(s.note.study.links.map(l=>l.title+' | '+l.url).join('\n'))}</textarea></label><label>代码语言<input id="study-language" maxlength="30" value="${esc(s.note.study.language)}"></label><label>代码（只展示，不执行）<textarea id="study-code-input" maxlength="6000" rows="10">${esc(s.note.study.code)}</textarea></label><p id="study-form-error" class="study-error" role="alert"></p><div class="row"><button type="button" class="secondary" onclick="cancelStudyEdit()">取消</button><button type="submit" class="primary">保存资料</button></div></form>`;
+}
+function cancelStudyEdit(){if(!confirm('放弃未保存的编辑？'))return;studyState.editing=false;renderStudy()}
+function saveStudyForm(){
+ try{const links=$('#study-links').value.split('\n').filter(l=>l.trim()).map(line=>{const i=line.indexOf('|');if(i<0)throw Error('链接格式应为 标题 | https://地址');return {title:line.slice(0,i).trim(),url:line.slice(i+1).trim()}});
+ const meta={...studyState.note.study,links,language:$('#study-language').value.trim(),code:$('#study-code-input').value};
+ const note=encodeStudyNote($('#study-note-text').value,meta);
+ if(!saveStudy(note,studyState.editRevision))throw Error('节点版本已变化，输入已保留，请返回确认。');studyState.editing=false;renderStudy();toast('节点资料已保存，可撤销');
+ }catch(e){$('#study-form-error').textContent=e.message}
+}
+async function generateStudy(){
+ const s=studyState;if(!s||studyController||s.candidate)return;
+ s.instruction=$('#study-instruction').value;s.generationRevision=current.revision;
+ const base=gatewayOrigin;
+ if(!/^https?:\/\/[^\s]+$/.test(base)){s.error='请先启动模型网关，并从网关页面打开应用。';renderStudy();return}
+ const controller=new AbortController();studyController=controller;s.error='';renderStudy();
+ const request={requestId:'lesson-'+id(),documentId:s.documentId,nodeId:s.nodeId,baseRevision:s.generationRevision,topic:s.title,instruction:s.instruction,context:s.note.text,code:s.note.study.code,links:s.note.study.links};
+ const timeout=setTimeout(()=>controller.abort(),180000);
+ try{const response=await fetch('/api/lessons/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:controller.signal});
+ const raw=await response.text();if(raw.length>131072)throw Error('讲解响应过大');const data=JSON.parse(raw);
+ if(!response.ok)throw Error(data.message||'生成失败：HTTP '+response.status);
+ if(data.requestId!==request.requestId||data.documentId!==request.documentId||data.nodeId!==request.nodeId||data.baseRevision!==request.baseRevision)throw Error('返回结果不属于当前节点版本');
+ validateLesson(data.script);if(data.script.sourceUrl&&!request.links.some(l=>l.url===data.script.sourceUrl))throw Error('讲解来源未在提供的链接中');
+ if(studyState!==s||controller.signal.aborted)return;s.candidate=data.script;s.step=0;s.builtIn='';
+ }catch(e){if(studyState===s)s.error=controller.signal.aborted?'讲解生成已取消或超时，节点资料保留。':e.message}
+ finally{clearTimeout(timeout);if(studyController===controller)studyController=null;if(studyState===s)renderStudy()}
+}
+function cancelStudyGeneration(){studyController?.abort()}
+function discardStudyCandidate(){stopStudy();studyState.candidate=null;studyState.step=0;renderStudy()}
+function applyStudyCandidate(){
+ try{const s=studyState;if(!s.candidate)return;
+ const note=encodeStudyNote(s.note.text,{...s.note.study,generated:s.candidate});
+ if(!saveStudy(note,s.generationRevision))throw Error('节点已有修改，旧候选不能覆盖新版本，请放弃后重新生成。');s.candidate=null;s.builtIn='';s.step=0;renderStudy();toast('动态讲解已保存，可撤销');
+ }catch(e){studyState.error=e.message;renderStudy()}
+}
+
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(studyIsReduced())stopStudy();if(studyState&&!studyState.editing)renderStudy()});
+
+// END GENERATED NODE LEARNING
 applyTheme();renderRecent();renderVideos();renderResources();renderDocuments();renderEditor();storageSet('flowspace.preview.documents',docs);
 void checkConnection();
 </script></body></html>

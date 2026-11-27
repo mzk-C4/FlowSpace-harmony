@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url';
 import { GatewayError, validateRequest } from './validation.mjs';
 import { readConfig, buildMessages, callModel, parseOutput, assembleCandidate } from './llm.mjs';
 
+import { serveLesson } from './lessons.mjs';
+
 const workPage = new URL('../docs/preview/index.html', import.meta.url);
 
 export function createGateway({ env = process.env, constrainOutput = false, timeoutMs = 120000, cacheTtlMs = 300000, maxCacheEntries = 30 } = {}) {
@@ -60,6 +62,9 @@ export function createGateway({ env = process.env, constrainOutput = false, time
     if (req.method === 'GET' && pathname === '/api/health') {
       return json(res, 200, { configured: config.configured, model: config.model,
         message: config.configured ? 'AI 网关已配置（尚未验证模型连接）' : '请在服务端配置模型地址与名称，远程模型还需要配置密钥。' });
+    }
+    if (req.method === 'POST' && pathname === '/api/lessons/generate') {
+      return serveLesson(req, res, { config, body, json, activeDocuments, timeoutMs });
     }
     if (req.method !== 'POST' || pathname !== '/api/mindmaps/generate') return json(res, 404, { code: 'NOT_FOUND', message: '接口不存在' });
     let request;

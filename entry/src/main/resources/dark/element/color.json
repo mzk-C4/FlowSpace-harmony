@@ -47,6 +47,14 @@
     {
       "name": "fs_danger",
       "value": "#FF9DA6"
+    },
+    {
+      "name": "fs_study_start",
+      "value": "#8DBBFF"
+    },
+    {
+      "name": "fs_study_end",
+      "value": "#6EDBDD"
     }
   ]
 }

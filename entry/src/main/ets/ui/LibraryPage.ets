@@ -28,6 +28,7 @@ export struct LibraryPage {
   @Event onOpenResource: (resource: LearningResource) => void = () => {};
   @Param externalOpenError: string = '';
   @Param failedResourceId: string = '';
+  @Event onOpenLesson: (id: string) => void = () => {};
   @Event onUseTopic: (text: string) => void = () => {};
   @Local query: string = '';
   @Local category: string = '全部';
@@ -124,6 +125,17 @@ export struct LibraryPage {
         Text('资料库').fontSize(34).fontWeight(FontWeight.Bold).fontColor($r('app.color.fs_text'))
         Text('工科开放资料与开源项目').fontSize(14).fontColor($r('app.color.fs_muted'))
       }.alignItems(HorizontalAlign.Start).width('100%').padding({ bottom: 7 })
+      Button({ type: ButtonType.Normal }) {
+        Row({ space: 10 }) {
+          appSymbol($r('sys.symbol.play_circle'), 22, $r('app.color.fs_accent'))
+          Column({ space: 3 }) {
+            Text('知识动态讲解').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
+            Text('节点可附链接与代码，由 AI 编排分步可视化').fontSize(11).fontColor($r('app.color.fs_muted'))
+          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          appSymbol($r('sys.symbol.chevron_right'), 12, $r('app.color.fs_muted'))
+        }.width('100%').padding(12)
+      }.width('100%').height('auto').constraintSize({ minHeight: 58 }).padding(0).borderRadius(13)
+        .backgroundColor($r('app.color.fs_soft')).onClick(() => this.onOpenLesson('ring'))
       Search({ value: this.query, placeholder: '搜索主题、来源或许可' })
         .height(48).textFont({ size: 16 }).placeholderFont({ size: 16 }).fontColor($r('app.color.fs_text'))
         .backgroundColor($r('app.color.fs_surface')).borderRadius(13)

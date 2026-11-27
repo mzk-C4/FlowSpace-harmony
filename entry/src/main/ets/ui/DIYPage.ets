@@ -1,3 +1,4 @@
+import { NodeStudy, decodeStudyNote, encodeStudyNote } from '../learning/NodeLearning';
 import { createDocument, EditorAction, MindMapDocument, MindMapNode, ChatMessage } from '../domain/MindMap';
 import { appSymbol, IconButton } from './Controls';
 import { MindMapCanvas } from '../canvas/MindMapCanvas';
@@ -33,6 +34,7 @@ export struct DIYPage {
   @Event onCancel: () => void = () => {};
   @Event onApplyCandidate: () => void = () => {};
   @Event onDiscardCandidate: () => void = () => {};
+  @Event onOpenLearning: (nodeId: string) => void = () => {};
   @Event onExport: (format: string) => void = () => {};
   @Local sheetOpen: boolean = false;
   @Local panel: string = 'node';
@@ -46,6 +48,7 @@ export struct DIYPage {
   @Local zoomPercent: number = 100;
   @Local formError: string = '';
   private editingId: string = '';
+  private editingStudy: NodeStudy | null = null;
   private activeDocument: string = '';
   private chatScroll: Scroller = new Scroller();
 
@@ -90,14 +93,25 @@ export struct DIYPage {
     this.editingId = this.node().id;
     this.nodeText = kind === 'edit' ? this.node().text : kind === 'rename' ? this.document.title : '';
     this.nodeNote = kind === 'edit' ? this.node().note : '';
+    this.editingStudy = null;
+    if (kind === 'edit') {
+      try {
+        const parsed = decodeStudyNote(this.node().note);
+        this.nodeNote = parsed.text; this.editingStudy = parsed.study;
+      } catch (_) { /* 损坏的旧区块仍可通过原始备注人工修复。 */ }
+    }
     this.parentId = this.node().parentId;
     this.openPanel('node');
   }
 
   private submitEditor(): void {
     if (this.nodeText.trim().length === 0) { this.formError = '请先填写内容。'; return; }
-    if (this.send(this.editKind, this.nodeText.trim(), this.nodeNote.trim(), '', this.editingId)) this.sheetOpen = false;
-    else this.formError = '修改未应用，请检查错误提示后重试。输入已保留。';
+    try {
+      const note: string = this.editKind === 'edit' && this.editingStudy !== null ?
+        encodeStudyNote(this.nodeNote.trim(), this.editingStudy) : this.nodeNote.trim();
+      if (this.send(this.editKind, this.nodeText.trim(), note, '', this.editingId)) this.sheetOpen = false;
+      else this.formError = '修改未应用，请检查错误提示后重试。输入已保留。';
+    } catch (error) { this.formError = (error as Error).message; }
   }
 
   private remove(): void {
@@ -190,6 +204,8 @@ export struct DIYPage {
       this.heading('导图工具')
       Text(this.node().text).width('100%').fontSize(14).maxLines(2).fontColor($r('app.color.fs_muted'))
         .padding({ top: 6, bottom: 4 })
+      this.menuRow($r('sys.symbol.book_pages'), '节点资料 · 链接、代码与动态讲解', this.editable() && !this.busy,
+        () => { this.sheetOpen = false; this.onOpenLearning(this.node().id); })
       this.menuRow($r('sys.symbol.plus_circle'), '添加同级节点', this.editable() && this.node().id !== this.document.rootId,
         () => this.openEditor('addSibling'))
       this.menuRow($r('sys.symbol.chevron_down'), this.node().collapsed ? '展开分支' : '折叠分支',
@@ -412,6 +428,8 @@ export struct DIYPage {
             Text(this.node().text).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.fs_text'))
               .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          IconButton({ icon: $r('sys.symbol.book_pages'), label: '节点资料与动态讲解', available: this.editable() && !this.busy,
+            onActivate: () => this.onOpenLearning(this.node().id) })
           IconButton({ icon: $r('sys.symbol.square_and_pencil'), label: '编辑选中节点', available: this.editable(),
             onActivate: () => this.openEditor('edit') })
           IconButton({ icon: $r('sys.symbol.plus_circle'), label: '添加子节点', available: this.editable(),
